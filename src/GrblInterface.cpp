@@ -1,5 +1,7 @@
 #include "GrblInterface.h"
 
+#include <Regexp.h>
+
 GrblInterface::GrblInterface() : m_currentIndex(0)
 {
 }
@@ -13,20 +15,30 @@ bool GrblInterface::requestStatusReport(const Stream &stream)
         return false;
     }
 
-    stream.print(STATUS_REPORT_COMMAND);
-    stream.print(EOL);
-    nextAvailableAt += STATUS_REPORT_MIN_INTERVAL_MS;
+    stream.print(Grbl::STATUS_REPORT_COMMAND);
+    stream.print(Grbl::EOL);
+    nextAvailableAt += Grbl::STATUS_REPORT_MIN_INTERVAL_MS;
     return true;
 }
 
-bool GrblInterface::encode(const char c)
+bool GrblInterface::update(const Stream &stream)
 {
-    if (m_currentIndex >= BUFFER_SIZE)
+    if (!stream.available())
     {
         return false;
     }
 
-    if (c == EOL)
+    return encode(stream.read());
+}
+
+bool GrblInterface::encode(const char c)
+{
+    if (m_currentIndex >= Grbl::BUFFER_SIZE)
+    {
+        return false;
+    }
+
+    if (c == Grbl::EOL)
     {
         return processBuffer();
     }
