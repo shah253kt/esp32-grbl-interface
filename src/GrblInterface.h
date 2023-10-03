@@ -13,7 +13,7 @@ namespace Grbl
     constexpr auto FLOATING_POINT_INTEGRAL_PART_LENGTH = 5;
     constexpr auto FLOATING_POINT_FRACTIONAL_PART_LENGTH = 3;
     constexpr auto FLOATING_POINT_STRING_LENGTH = FLOATING_POINT_INTEGRAL_PART_LENGTH + FLOATING_POINT_FRACTIONAL_PART_LENGTH + 1;
-    constexpr auto MAX_GCODE_LENGTH = ((FLOATING_POINT_STRING_LENGTH + 1) * MAX_AXES) + 3;
+    constexpr auto MAX_GCODE_LENGTH = ((FLOATING_POINT_STRING_LENGTH + 1) * (MAX_AXES + 1)) + 3;
 
     typedef EnumClass MachineState;
 
@@ -171,4 +171,5 @@ private:
     [[nodiscard]] bool processBuffer();
     void processPosition(char *posString);
     [[nodiscard]] bool requestStatusReport();
+    void createLinearMoveGCode(char *gcode, bool rapid = true, float feedRate = 0) const;
 };

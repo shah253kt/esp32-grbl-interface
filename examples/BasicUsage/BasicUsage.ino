@@ -25,8 +25,8 @@ void setup() {
     Serial.println();
   };
 
-  grblInterface.setPosition(Grbl::Axes::X, 0);
-  grblInterface.setPosition(Grbl::Axes::Y, 0);
+  grblInterface.setPosition(Grbl::Axes::X, 100);
+  grblInterface.setPosition(Grbl::Axes::Y, 50);
   grblInterface.sendLinearMove();
 }
 

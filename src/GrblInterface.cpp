@@ -66,30 +66,16 @@ void GrblInterface::setPosition(const Grbl::Axis &axis, float value)
 void GrblInterface::sendLinearMove() const
 {
     char gcode[Grbl::MAX_GCODE_LENGTH];
-    strcpy(gcode, GCODE_LINEAR_RAPID_MOVE);
-
-    for (const auto &axis : Grbl::AXES) {
-        const auto positionPair = m_targetPosition.get(*axis);
-
-        if (!positionPair->isSet) {
-            continue;
-        }
-
-        char floatingPointString[Grbl::FLOATING_POINT_STRING_LENGTH + 1];
-        dtostrf(positionPair->value, Grbl::FLOATING_POINT_FRACTIONAL_PART_LENGTH + 3, Grbl::FLOATING_POINT_FRACTIONAL_PART_LENGTH, floatingPointString);
-        char axisString[strlen(floatingPointString) + strlen(axis->name())];
-        sprintf(axisString, "%s%s", axis->name(), floatingPointString);
-        strcat(gcode, axisString);
-    }
-
-    Serial.println(gcode);
+    createLinearMoveGCode(gcode);
     m_stream->print(gcode);
     m_stream->print(EOL);
 }
 
 void GrblInterface::sendLinearMove(float feedRate)
 {
-    // m_stream->print(gcode);
+    char gcode[Grbl::MAX_GCODE_LENGTH];
+    createLinearMoveGCode(gcode, false, feedRate);
+    m_stream->print(gcode);
     m_stream->print(EOL);
 }
 
@@ -181,4 +167,36 @@ bool GrblInterface::requestStatusReport()
     m_stream->print(STATUS_REPORT_COMMAND);
     nextAvailableAt += STATUS_REPORT_MIN_INTERVAL_MS;
     return true;
+}
+
+void GrblInterface::createLinearMoveGCode(char *gcode, bool rapid, float feedRate) const
+{
+    strcpy(gcode, rapid ? GCODE_LINEAR_RAPID_MOVE : GCODE_LINEAR_MOVE);
+
+    for (const auto &axis : Grbl::AXES)
+    {
+        const auto positionPair = m_targetPosition.get(*axis);
+
+        if (!positionPair->isSet)
+        {
+            continue;
+        }
+
+        char floatingPointString[Grbl::FLOATING_POINT_STRING_LENGTH + 1];
+        dtostrf(positionPair->value, Grbl::FLOATING_POINT_FRACTIONAL_PART_LENGTH + 3, Grbl::FLOATING_POINT_FRACTIONAL_PART_LENGTH, floatingPointString);
+        char axisString[strlen(floatingPointString) + strlen(axis->name())];
+        sprintf(axisString, "%s%s", axis->name(), floatingPointString);
+        strcat(gcode, axisString);
+    }
+
+    if (rapid)
+    {
+        return;
+    }
+
+    char floatingPointString[Grbl::FLOATING_POINT_STRING_LENGTH + 1];
+    dtostrf(feedRate, Grbl::FLOATING_POINT_FRACTIONAL_PART_LENGTH + 3, Grbl::FLOATING_POINT_FRACTIONAL_PART_LENGTH, floatingPointString);
+    char feedRateString[strlen(floatingPointString) + 2];
+    sprintf(feedRateString, "F%s", floatingPointString);
+    strcat(gcode, feedRateString);
 }
