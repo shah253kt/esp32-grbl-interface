@@ -1,36 +1,35 @@
 #include "GrblInterface.h"
-#include <Regexp.h>
-constexpr auto STATUS_REPORT_REGEX = "<(\w+)\|MPos:([\d\.,-]+),([\d\.,-]+),([\d\.,-]+)(.+)>";
-constexpr auto TEST_STR = "<Idle|MPos:151.000,149.000,-1.000|Pn:XP|FS:0,0|WCO:12.000,28.000,78.000>";
 
-GrblInterface grblInterface;
-
-void matchCallback(const char *match, const unsigned int length, const MatchState &ms);
+GrblInterface grblInterface(Serial2);
 
 void setup() {
-  Serial.begin(9600);
-  MatchState ms(TEST_STR);
-  auto count = ms.GlobalMatch(STATUS_REPORT_REGEX, matchCallback);
+  Serial.begin(115200);
+  Serial2.setTX(4);
+  Serial2.setRX(5);
+  Serial2.begin(115200);
+
+  while (!Serial) {}
+
+  grblInterface.onPositionUpdated = [](const Grbl::MachineState &machineState, const Grbl::PositionMode &positionMode, const Grbl::Position &position) {
+    Serial.print("Machine state:");
+    Serial.println(machineState.name());
+    Serial.print("Position mode:");
+    Serial.println(positionMode.name());
+    Serial.print("Position: ");
+
+    for (const auto &axis : Grbl::AXES) {
+      Serial.print(position.getValue(*axis));
+      Serial.print(' ');
+    }
+
+    Serial.println();
+  };
+
+  grblInterface.setPosition(Grbl::Axes::X, 0);
+  grblInterface.setPosition(Grbl::Axes::Y, 0);
+  grblInterface.sendLinearMove();
 }
 
 void loop() {
-}
-
-void matchCallback(const char *match,          // matching string (not null-terminated)
-                   const unsigned int length,  // length of matching string
-                   const MatchState &ms)       // MatchState in use (to get captures)
-{
-  char cap[40];
-
-  Serial.print("Matched: ");
-  Serial.write((byte *)match, length);
-  Serial.println();
-
-  for (byte i = 0; i < ms.level; i++) {
-    Serial.print("Capture ");
-    Serial.print(i, DEC);
-    Serial.print(" = ");
-    ms.GetCapture(cap, i);
-    Serial.println(cap);
-  }
+  auto updated = grblInterface.update();
 }
