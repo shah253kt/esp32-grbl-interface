@@ -16,6 +16,8 @@ namespace
 
     namespace RegEx
     {
+        // Note: To test Lua style regex, use the following tool:
+        // https://montymahato.github.io/lua-pattern-tester/
         constexpr auto STATUS_REPORT = "<([%w:%d]+)%|(%w+):([-%d.,]+)[%|]?.*>";
     }
 
@@ -65,24 +67,33 @@ void GrblInterface::processBuffer()
     char tempBuffer[m_buffer.length() + 1];
     strcpy(buffer, m_buffer.c_str());
     ms.Target(buffer);
+    m_buffer.clear();
 
     if (ms.Match((char *)RegEx::STATUS_REPORT) > 0)
     {
         ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_MACHINE_STATE);
         auto machineState = getMachineState(tempBuffer);
-        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_POSITION_MODE);
-        auto coordinateMode = getCoordinateMode(tempBuffer);
-        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_POSITION);
-        processPosition(tempBuffer);
 
-        if (machineState == Grbl::MachineState::Unknown ||
-            coordinateMode == Grbl::CoordinateMode::Unknown ||
-            onPositionUpdate == nullptr)
+        if (machineState == Grbl::MachineState::Unknown)
         {
             return;
         }
 
-        onPositionUpdate(machineState, coordinateMode);
+        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_POSITION_MODE);
+        auto coordinateMode = getCoordinateMode(tempBuffer);
+
+        if (coordinateMode == Grbl::CoordinateMode::Unknown)
+        {
+            return;
+        }
+
+        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_POSITION);
+        extractPosition(tempBuffer);
+
+        if (onPositionUpdate)
+        {
+            onPositionUpdate(machineState, coordinateMode);
+        }
     }
 }
 
@@ -124,7 +135,7 @@ void GrblInterface::setWorkCoordinate(const std::vector<PositionPair> &position)
 {
     resetStringStream();
     appendGCode(GCode::DefineWorkCoordinate);
-    extractPosition(position);
+    serializePosition(position);
     send();
 }
 
@@ -137,7 +148,7 @@ void GrblInterface::linearMoveRapid(const std::vector<PositionPair> &position)
 {
     resetStringStream();
     appendGCode(GCode::LinearMoveRapid);
-    extractPosition(position);
+    serializePosition(position);
     send();
 }
 
@@ -146,7 +157,7 @@ void GrblInterface::linearMoveFeedRate(float feedRate, const std::vector<Positio
     resetStringStream();
     appendGCode(GCode::LinearMoveFeedRate);
     m_stringStream << 'F' << feedRate;
-    extractPosition(position);
+    serializePosition(position);
     send();
 }
 
@@ -154,11 +165,20 @@ void GrblInterface::linearMoveRapidInMachineCoordinate(const std::vector<Positio
 {
     resetStringStream();
     appendGCode(GCode::LinearMoveMachineCoordinate);
-    extractPosition(position);
+    serializePosition(position);
     send();
 }
 
-std::array<float, Grbl::NUMBER_OF_AXES> GrblInterface::getPosition()
+void GrblInterface::jog(float feedRate, const std::vector<PositionPair> &position)
+{
+    resetStringStream();
+    appendGCode(GCode::Jog);
+    m_stringStream << 'F' << feedRate;
+    serializePosition(position);
+    send();
+}
+
+std::array<float, Grbl::MAX_NUMBER_OF_AXES> GrblInterface::getPosition()
 {
     return m_position;
 }
@@ -216,12 +236,29 @@ Grbl::Axis GrblInterface::getAxis(char axis)
 
 char *GrblInterface::getCoordinateMode(Grbl::CoordinateMode coordinateMode)
 {
-    return "";
+    if (coordinateMode == Grbl::CoordinateMode::Unknown)
+    {
+        return nullptr;
+    }
+
+    return Grbl::coordinateModes[static_cast<int>(coordinateMode)];
 }
 
 Grbl::CoordinateMode GrblInterface::getCoordinateMode(char *coordinateMode)
 {
+    for (auto i = 0; i < Grbl::coordinateModes.size(); i++)
+    {
+        if (strcmp(coordinateMode, Grbl::coordinateModes[i]) == 0)
+        {
+            return static_cast<Grbl::CoordinateMode>(i);
+        }
+    }
+
     return Grbl::CoordinateMode::Unknown;
+}
+
+void GrblInterface::test()
+{
 }
 
 // --------------------------------------------------------------------------------------------------
@@ -241,7 +278,7 @@ void GrblInterface::appendGCode(const GCode gCode)
     m_stringStream << Grbl::getGCode(gCode);
 }
 
-void GrblInterface::extractPosition(const std::vector<PositionPair> &position)
+void GrblInterface::serializePosition(const std::vector<PositionPair> &position)
 {
     std::for_each(position.begin(), position.end(), [this](const PositionPair &pos)
                   { m_stringStream << getAxis(pos.first) << pos.second; });
@@ -257,19 +294,18 @@ void GrblInterface::send()
     m_stream->println(m_stringStream.str().c_str());
 }
 
-void GrblInterface::processPosition(const char *positionString)
+void GrblInterface::extractPosition(const char *positionString)
 {
     std::string pos(positionString);
+    std::string position;
+    std::stringstream ss(pos);
+    const auto numberOfAxes = std::count(pos.begin(), pos.end(), VALUE_SEPARATOR) + 1;
 
-    if (std::count(pos.begin(), pos.end(), VALUE_SEPARATOR) != Grbl::NUMBER_OF_AXES - 1)
-    {
+    if (numberOfAxes > Grbl::MAX_NUMBER_OF_AXES) {
         return;
     }
 
-    std::stringstream ss(pos);
-    std::string position;
-
-    for (auto i = 0; i < Grbl::NUMBER_OF_AXES; i++)
+    for (auto i = 0; i < numberOfAxes; i++)
     {
         std::getline(ss, position, VALUE_SEPARATOR);
 

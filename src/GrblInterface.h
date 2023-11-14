@@ -31,10 +31,10 @@ public:
     void linearMoveFeedRate(float feedRate, const std::vector<PositionPair> &position);
     void linearMoveRapidInMachineCoordinate(const std::vector<PositionPair> &position);
 
-    [[nodiscard]] std::array<float, Grbl::NUMBER_OF_AXES> getPosition();
-    [[nodiscard]] float getPosition(Grbl::Axis axis);
+    void jog(float feedRate, const std::vector<PositionPair> &position);
 
-    std::function<void(Grbl::MachineState, Grbl::CoordinateMode)> onPositionUpdate;
+    [[nodiscard]] std::array<float, Grbl::MAX_NUMBER_OF_AXES> getPosition();
+    [[nodiscard]] float getPosition(Grbl::Axis axis);
 
     char *getMachineState(Grbl::MachineState machineState);
     Grbl::MachineState getMachineState(char *state);
@@ -45,16 +45,20 @@ public:
     char *getCoordinateMode(Grbl::CoordinateMode coordinateMode);
     Grbl::CoordinateMode getCoordinateMode(char *coordinateMode);
 
+    void test();
+
+    std::function<void(Grbl::MachineState, Grbl::CoordinateMode)> onPositionUpdate;
+
 private:
     Stream *m_stream;
     std::string m_buffer;
-    std::array<float, Grbl::NUMBER_OF_AXES> m_position;
+    std::array<float, Grbl::MAX_NUMBER_OF_AXES> m_position;
     std::stringstream m_stringStream;
 
     void resetStringStream();
     void appendGCode(GCode gCode);
-    void extractPosition(const std::vector<PositionPair> &position);
+    void serializePosition(const std::vector<PositionPair> &position);
     void sendGCode(GCode gCode);
     void send();
-    void processPosition(const char *positionString);
+    void extractPosition(const char *positionString);
 };

@@ -5,7 +5,7 @@
 namespace Grbl
 {
     constexpr auto DEFAULT_TIMEOUT_MS = 100;
-    constexpr auto NUMBER_OF_AXES = 6;
+    constexpr auto MAX_NUMBER_OF_AXES = 6;
     constexpr auto FLOAT_PRECISION = 3;
 
     enum class UnitOfMeasurement
@@ -28,7 +28,7 @@ namespace Grbl
         Unknown
     };
 
-    inline constexpr std::array<char *, 10> machineStates = {"Idle",
+    inline constexpr std::array<char *, 9> machineStates = {"Idle",
                                                              "Run",
                                                              "Hold",
                                                              "Jog",
@@ -55,14 +55,15 @@ namespace Grbl
     {
         Machine,
         Work,
+        WorkCoordinateOffset,
         Unknown
     };
+
+    inline constexpr std::array<char *, 3> coordinateModes = {"MPos", "WPos", "WCO"};
 
     enum class PositionMode
     {
         Absolute,
         Relative
     };
-
-    inline constexpr std::array<char *, 3> coordinateModes = {"MPos", "WPos"};
 }
