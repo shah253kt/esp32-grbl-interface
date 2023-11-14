@@ -12,6 +12,7 @@
 #endif
 
 using PositionPair = std::pair<Grbl::Axis, float>;
+using Coordinate = std::array<float, Grbl::MAX_NUMBER_OF_AXES>;
 
 class GrblInterface
 {
@@ -19,7 +20,6 @@ public:
     GrblInterface(Stream &stream);
 
     void update(uint16_t timeout = Grbl::DEFAULT_TIMEOUT_MS);
-    void processBuffer();
 
     void setUnitOfMeasurement(Grbl::UnitOfMeasurement unitOfMeasurement);
     void setPositionMode(Grbl::PositionMode positionMode);
@@ -33,17 +33,23 @@ public:
 
     void jog(float feedRate, const std::vector<PositionPair> &position);
 
-    [[nodiscard]] std::array<float, Grbl::MAX_NUMBER_OF_AXES> getPosition();
+    [[nodiscard]] float getCurrentFeedRate();
+    [[nodiscard]] float getCurrentSpindleSpeed();
+
+    [[nodiscard]] Coordinate getPosition();
     [[nodiscard]] float getPosition(Grbl::Axis axis);
 
-    char *getMachineState(Grbl::MachineState machineState);
-    Grbl::MachineState getMachineState(char *state);
+    [[nodiscard]] Coordinate getWorkCoordinateOffset();
+    [[nodiscard]] float getWorkCoordinateOffset(Grbl::Axis axis);
 
-    char getAxis(Grbl::Axis axis);
-    Grbl::Axis getAxis(char axis);
-
-    char *getCoordinateMode(Grbl::CoordinateMode coordinateMode);
-    Grbl::CoordinateMode getCoordinateMode(char *coordinateMode);
+    [[nodiscard]] char *getMachineState(Grbl::MachineState machineState);
+    [[nodiscard]] Grbl::MachineState getMachineState(char *state);
+    
+    [[nodiscard]] char getAxis(Grbl::Axis axis);
+    [[nodiscard]] Grbl::Axis getAxis(char axis);
+    
+    [[nodiscard]] char *getCoordinateMode(Grbl::CoordinateMode coordinateMode);
+    [[nodiscard]] Grbl::CoordinateMode getCoordinateMode(char *coordinateMode);
 
     void test();
 
@@ -52,13 +58,17 @@ public:
 private:
     Stream *m_stream;
     std::string m_buffer;
-    std::array<float, Grbl::MAX_NUMBER_OF_AXES> m_position;
+    Coordinate m_position;
+    Coordinate m_workCoordinateOffset;
     std::stringstream m_stringStream;
+    float m_currentFeedRate;
+    float m_currentSpindleSpeed;
 
+    void processBuffer();
     void resetStringStream();
     void appendGCode(GCode gCode);
     void serializePosition(const std::vector<PositionPair> &position);
     void sendGCode(GCode gCode);
     void send();
-    void extractPosition(const char *positionString);
+    void extractPosition(const char *positionString, Coordinate *positionArray);
 };

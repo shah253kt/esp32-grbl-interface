@@ -19,6 +19,8 @@ namespace
         // Note: To test Lua style regex, use the following tool:
         // https://montymahato.github.io/lua-pattern-tester/
         constexpr auto STATUS_REPORT = "<([%w:%d]+)%|(%w+):([-%d.,]+)[%|]?.*>";
+        constexpr auto FEED_AND_SPEED = "FS:(%-?%d+%.?%d*),(%-?%d+%.?%d*)";
+        constexpr auto WORK_COORDINATE_OFFSET = "WCO:([%-?%d+%.?%d*,]*)";
     }
 
     namespace ResponseIndex
@@ -26,15 +28,29 @@ namespace
         constexpr auto STATUS_REPORT_MACHINE_STATE = 0;
         constexpr auto STATUS_REPORT_POSITION_MODE = 1;
         constexpr auto STATUS_REPORT_POSITION = 2;
+        constexpr auto STATUS_REPORT_FEED_RATE = 0;
+        constexpr auto STATUS_REPORT_SPINDLE_SPEED = 1;
+        constexpr auto STATUS_REPORT_WORK_COORDINATE_OFFSET = 0;
     }
 }
 
-GrblInterface::GrblInterface(Stream &stream) : m_stream(&stream)
+GrblInterface::GrblInterface(Stream &stream)
+    : m_stream(&stream),
+      m_currentFeedRate(0),
+      m_currentSpindleSpeed(0)
 {
 }
 
 void GrblInterface::update(uint16_t timeout)
 {
+    static uint32_t nextStatusReportRequestAt = 0;
+
+    if (millis() >= nextStatusReportRequestAt)
+    {
+        m_stream->println(STATUS_REPORT_COMMAND);
+        nextStatusReportRequestAt = millis() + STATUS_REPORT_MIN_INTERVAL_MS;
+    }
+
     if (!m_stream->available())
     {
         return;
@@ -58,43 +74,6 @@ void GrblInterface::update(uint16_t timeout)
     }
 
     m_buffer.append(ss.str());
-}
-
-void GrblInterface::processBuffer()
-{
-    static MatchState ms;
-    char buffer[m_buffer.length() + 1];
-    char tempBuffer[m_buffer.length() + 1];
-    strcpy(buffer, m_buffer.c_str());
-    ms.Target(buffer);
-    m_buffer.clear();
-
-    if (ms.Match((char *)RegEx::STATUS_REPORT) > 0)
-    {
-        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_MACHINE_STATE);
-        auto machineState = getMachineState(tempBuffer);
-
-        if (machineState == Grbl::MachineState::Unknown)
-        {
-            return;
-        }
-
-        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_POSITION_MODE);
-        auto coordinateMode = getCoordinateMode(tempBuffer);
-
-        if (coordinateMode == Grbl::CoordinateMode::Unknown)
-        {
-            return;
-        }
-
-        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_POSITION);
-        extractPosition(tempBuffer);
-
-        if (onPositionUpdate)
-        {
-            onPositionUpdate(machineState, coordinateMode);
-        }
-    }
 }
 
 void GrblInterface::setUnitOfMeasurement(const Grbl::UnitOfMeasurement unitOfMeasurement)
@@ -178,7 +157,17 @@ void GrblInterface::jog(float feedRate, const std::vector<PositionPair> &positio
     send();
 }
 
-std::array<float, Grbl::MAX_NUMBER_OF_AXES> GrblInterface::getPosition()
+float GrblInterface::getCurrentFeedRate()
+{
+    return m_currentFeedRate;
+}
+
+float GrblInterface::getCurrentSpindleSpeed()
+{
+    return m_currentSpindleSpeed;
+}
+
+Coordinate GrblInterface::getPosition()
 {
     return m_position;
 }
@@ -186,6 +175,16 @@ std::array<float, Grbl::MAX_NUMBER_OF_AXES> GrblInterface::getPosition()
 float GrblInterface::getPosition(const Grbl::Axis axis)
 {
     return m_position[static_cast<int>(axis)];
+}
+
+Coordinate GrblInterface::getWorkCoordinateOffset()
+{
+    return m_workCoordinateOffset;
+}
+
+float GrblInterface::getWorkCoordinateOffset(const Grbl::Axis axis)
+{
+    return m_workCoordinateOffset[static_cast<int>(axis)];
 }
 
 char *GrblInterface::getMachineState(Grbl::MachineState machineState)
@@ -265,6 +264,57 @@ void GrblInterface::test()
 // Private methods
 // --------------------------------------------------------------------------------------------------
 
+void GrblInterface::processBuffer()
+{
+    static MatchState ms;
+    char buffer[m_buffer.length() + 1];
+    char tempBuffer[m_buffer.length() + 1];
+    strcpy(buffer, m_buffer.c_str());
+    ms.Target(buffer);
+    m_buffer.clear();
+
+    if (ms.Match((char *)RegEx::FEED_AND_SPEED) > 0)
+    {
+        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_FEED_RATE);
+        m_currentFeedRate = atof(tempBuffer);
+        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_SPINDLE_SPEED);
+        m_currentSpindleSpeed = atof(tempBuffer);
+    }
+
+    if (ms.Match((char *)RegEx::WORK_COORDINATE_OFFSET) > 0)
+    {
+        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_WORK_COORDINATE_OFFSET);
+        extractPosition(tempBuffer, &m_workCoordinateOffset);
+    }
+
+    if (ms.Match((char *)RegEx::STATUS_REPORT) > 0)
+    {
+        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_MACHINE_STATE);
+        auto machineState = getMachineState(tempBuffer);
+
+        if (machineState == Grbl::MachineState::Unknown)
+        {
+            return;
+        }
+
+        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_POSITION_MODE);
+        auto coordinateMode = getCoordinateMode(tempBuffer);
+
+        if (coordinateMode == Grbl::CoordinateMode::Unknown)
+        {
+            return;
+        }
+
+        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_POSITION);
+        extractPosition(tempBuffer, &m_position);
+
+        if (onPositionUpdate)
+        {
+            onPositionUpdate(machineState, coordinateMode);
+        }
+    }
+}
+
 void GrblInterface::resetStringStream()
 {
     std::stringstream ss;
@@ -294,14 +344,15 @@ void GrblInterface::send()
     m_stream->println(m_stringStream.str().c_str());
 }
 
-void GrblInterface::extractPosition(const char *positionString)
+void GrblInterface::extractPosition(const char *positionString, Coordinate *positionArray)
 {
     std::string pos(positionString);
     std::string position;
     std::stringstream ss(pos);
     const auto numberOfAxes = std::count(pos.begin(), pos.end(), VALUE_SEPARATOR) + 1;
 
-    if (numberOfAxes > Grbl::MAX_NUMBER_OF_AXES) {
+    if (numberOfAxes > Grbl::MAX_NUMBER_OF_AXES)
+    {
         return;
     }
 
@@ -313,7 +364,7 @@ void GrblInterface::extractPosition(const char *positionString)
         {
             try
             {
-                m_position[i] = std::stof(position);
+                (*positionArray)[i] = std::stof(position);
             }
             catch (std::invalid_argument &e)
             {

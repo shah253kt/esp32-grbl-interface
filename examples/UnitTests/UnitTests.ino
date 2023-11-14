@@ -5,6 +5,7 @@ Sample Grbl strings:
 <Hold|MPos:10.123,20.456,30.789|FS:0,0|Ov:100,100,100>
 <Jog|MPos:-5.000,-5.000,-5.000|FS:1000,8000>
 <Alarm|MPos:0.000,0.000,0.000|FS:0,0>
+<Idle|MPos:5.529,0.560,7.000|FS:400,1000|WCO:1.234,5.678,9.123>
 */
 
 #include "GrblInterface.h"
@@ -22,10 +23,22 @@ void setup() {
     Serial.println(grbl.getCoordinateMode(coordinateMode));
     Serial.print("Position: ");
 
-    for (const auto &axisPosition : grbl.getPosition()) {
-      Serial.print(axisPosition);
+    for (const auto &coordinate : grbl.getPosition()) {
+      Serial.print(coordinate);
       Serial.print(' ');
     }
+
+    Serial.print("\nWork Coordinate Offset: ");
+
+    for (const auto &coordinate : grbl.getWorkCoordinateOffset()) {
+      Serial.print(coordinate);
+      Serial.print(' ');
+    }
+    
+    Serial.print("\nCurrent feed rate: ");
+    Serial.println(grbl.getCurrentFeedRate());
+    Serial.print("Current spindle speed: ");
+    Serial.println(grbl.getCurrentSpindleSpeed());
 
     Serial.println();
   };
