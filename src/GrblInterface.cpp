@@ -2,201 +2,287 @@
 
 #include <Regexp.h>
 
-constexpr auto EOL = '\r';
-constexpr auto VALUE_SEPARATOR = ",";
-constexpr auto OK_RESPONSE = "ok";
-constexpr auto ERROR_RESPONSE = "error";
+#include <algorithm>
 
-constexpr auto STATUS_REPORT_COMMAND = '?';
-constexpr auto STATUS_REPORT_MIN_INTERVAL_MS = 200; // Limits the status report query to 5Hz, as recommended by Grbl.
-constexpr auto STATUS_REPORT_REGEX = "<([%w:%d]+)%|(%w+):([-%d.,]+)[%|]?.*>";
-
-constexpr auto GCODE_LINEAR_RAPID_MOVE = "G0";
-constexpr auto GCODE_LINEAR_MOVE = "G1";
-
-GrblInterface::GrblInterface(Stream &stream) : m_currentIndex(0)
+namespace
 {
-    m_stream = &stream;
-}
+    constexpr auto VALUE_SEPARATOR = ',';
+    constexpr auto OK_RESPONSE = "ok";
+    constexpr auto ERROR_RESPONSE = "error";
 
-bool GrblInterface::update(uint16_t timeout)
-{
-    const auto timedOutAt = millis() + timeout;
+    constexpr auto EOL = '\r';
+    constexpr auto STATUS_REPORT_COMMAND = '?';
+    constexpr auto STATUS_REPORT_MIN_INTERVAL_MS = 200; // Limits the status report query to 5Hz, as recommended by Grbl.
 
-    do
+    namespace RegEx
     {
-        const auto sent = requestStatusReport();
-        if (m_stream->available())
-        {
-            break;
-        }
-    } while (millis() < timedOutAt);
-
-    if (millis() >= timedOutAt)
-    {
-        return false;
+        constexpr auto STATUS_REPORT = "<([%w:%d]+)%|(%w+):([-%d.,]+)[%|]?.*>";
     }
 
-    return encode(m_stream->read());
-}
-
-bool GrblInterface::encode(const char c)
-{
-    if (m_currentIndex >= Grbl::BUFFER_SIZE)
+    namespace ResponseIndex
     {
-        return false;
-    }
-
-    if (c == EOL)
-    {
-        return processBuffer();
-    }
-
-    m_buffer[m_currentIndex++] = c;
-    m_buffer[m_currentIndex] = '\0';
-
-    return true;
-}
-
-void GrblInterface::setPosition(const Grbl::Axis &axis, float value)
-{
-    m_targetPosition.setValue(axis, value);
-}
-
-void GrblInterface::sendLinearMove() const
-{
-    char gcode[Grbl::MAX_GCODE_LENGTH];
-    createLinearMoveGCode(gcode);
-    m_stream->print(gcode);
-    m_stream->print(EOL);
-}
-
-void GrblInterface::sendLinearMove(float feedRate)
-{
-    char gcode[Grbl::MAX_GCODE_LENGTH];
-    createLinearMoveGCode(gcode, false, feedRate);
-    m_stream->print(gcode);
-    m_stream->print(EOL);
-}
-
-Grbl::MachineState GrblInterface::getMachineState(char *state)
-{
-    auto index = 0;
-    for (const auto machineState : Grbl::MACHINE_STATES)
-    {
-        if (strcmp(state, machineState->name()) >= 0)
-        {
-            return *machineState;
-        }
-
-        index++;
-    }
-
-    return Grbl::MachineStates::Unknown;
-}
-Grbl::PositionMode GrblInterface::getPositionMode(char *mode)
-{
-    auto index = 0;
-    for (const auto positionMode : Grbl::POSITION_MODES)
-    {
-        if (strcmp(mode, positionMode->name()) >= 0)
-        {
-            return *positionMode;
-        }
-
-        index++;
-    }
-
-    return Grbl::PositionModes::Unknown;
-}
-
-bool GrblInterface::processBuffer()
-{
-    MatchState ms;
-    ms.Target(m_buffer);
-    auto result = ms.Match((char *)STATUS_REPORT_REGEX);
-    m_currentIndex = 0;
-
-    if (result == 0)
-    {
-        return false;
-    }
-
-    ms.GetCapture(m_tempBuffer, 0);
-    auto machineState = getMachineState(m_tempBuffer);
-    ms.GetCapture(m_tempBuffer, 1);
-    auto positionMode = getPositionMode(m_tempBuffer);
-    ms.GetCapture(m_tempBuffer, 2);
-    processPosition(m_tempBuffer);
-
-    if (onPositionUpdated != nullptr)
-    {
-        onPositionUpdated(machineState, positionMode, m_currentPosition);
-    }
-
-    return true;
-}
-
-void GrblInterface::processPosition(char *posString)
-{
-    char *token = strtok(posString, VALUE_SEPARATOR);
-    char floatingPointString[Grbl::FLOATING_POINT_STRING_LENGTH + 1];
-
-    for (const auto &axis : Grbl::AXES)
-    {
-        if (token == NULL)
-        {
-            break;
-        }
-
-        float value = atof(token);
-        m_currentPosition.setValue(*axis, value);
-        token = strtok(NULL, VALUE_SEPARATOR);
+        constexpr auto STATUS_REPORT_MACHINE_STATE = 0;
+        constexpr auto STATUS_REPORT_POSITION_MODE = 1;
+        constexpr auto STATUS_REPORT_POSITION = 2;
     }
 }
 
-bool GrblInterface::requestStatusReport()
+GrblInterface::GrblInterface(Stream &stream) : m_stream(&stream)
 {
-    static uint32_t nextAvailableAt = 0;
-
-    if (millis() < nextAvailableAt)
-    {
-        return false;
-    }
-
-    m_stream->print(STATUS_REPORT_COMMAND);
-    nextAvailableAt += STATUS_REPORT_MIN_INTERVAL_MS;
-    return true;
 }
 
-void GrblInterface::createLinearMoveGCode(char *gcode, bool rapid, float feedRate) const
+void GrblInterface::update(uint16_t timeout)
 {
-    strcpy(gcode, rapid ? GCODE_LINEAR_RAPID_MOVE : GCODE_LINEAR_MOVE);
-
-    for (const auto &axis : Grbl::AXES)
-    {
-        const auto positionPair = m_targetPosition.get(*axis);
-
-        if (!positionPair->isSet)
-        {
-            continue;
-        }
-
-        char floatingPointString[Grbl::FLOATING_POINT_STRING_LENGTH + 1];
-        dtostrf(positionPair->value, Grbl::FLOATING_POINT_FRACTIONAL_PART_LENGTH + 3, Grbl::FLOATING_POINT_FRACTIONAL_PART_LENGTH, floatingPointString);
-        char axisString[strlen(floatingPointString) + strlen(axis->name())];
-        sprintf(axisString, "%s%s", axis->name(), floatingPointString);
-        strcat(gcode, axisString);
-    }
-
-    if (rapid)
+    if (!m_stream->available())
     {
         return;
     }
 
-    char floatingPointString[Grbl::FLOATING_POINT_STRING_LENGTH + 1];
-    dtostrf(feedRate, Grbl::FLOATING_POINT_FRACTIONAL_PART_LENGTH + 3, Grbl::FLOATING_POINT_FRACTIONAL_PART_LENGTH, floatingPointString);
-    char feedRateString[strlen(floatingPointString) + 2];
-    sprintf(feedRateString, "F%s", floatingPointString);
-    strcat(gcode, feedRateString);
+    const auto timeoutAt = millis() + timeout;
+    std::stringstream ss;
+
+    while (m_stream->available() && millis() < timeoutAt)
+    {
+        const char c = m_stream->read();
+
+        if (c == EOL)
+        {
+            m_buffer.append(ss.str());
+            processBuffer();
+            return;
+        }
+
+        ss << c;
+    }
+
+    m_buffer.append(ss.str());
+}
+
+void GrblInterface::processBuffer()
+{
+    static MatchState ms;
+    char buffer[m_buffer.length() + 1];
+    char tempBuffer[m_buffer.length() + 1];
+    strcpy(buffer, m_buffer.c_str());
+    ms.Target(buffer);
+
+    if (ms.Match((char *)RegEx::STATUS_REPORT) > 0)
+    {
+        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_MACHINE_STATE);
+        auto machineState = getMachineState(tempBuffer);
+        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_POSITION_MODE);
+        auto coordinateMode = getCoordinateMode(tempBuffer);
+        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_POSITION);
+        processPosition(tempBuffer);
+
+        if (machineState == Grbl::MachineState::Unknown ||
+            coordinateMode == Grbl::CoordinateMode::Unknown ||
+            onPositionUpdate == nullptr)
+        {
+            return;
+        }
+
+        onPositionUpdate(machineState, coordinateMode);
+    }
+}
+
+void GrblInterface::setUnitOfMeasurement(const Grbl::UnitOfMeasurement unitOfMeasurement)
+{
+    switch (unitOfMeasurement)
+    {
+    case Grbl::UnitOfMeasurement::Imperial:
+    {
+        sendGCode(GCode::ImperialUnit);
+        break;
+    }
+    case Grbl::UnitOfMeasurement::Metric:
+    {
+        sendGCode(GCode::MetricUnit);
+        break;
+    }
+    }
+}
+
+void GrblInterface::setPositionMode(Grbl::PositionMode positionMode)
+{
+    switch (positionMode)
+    {
+    case Grbl::PositionMode::Absolute:
+    {
+        sendGCode(GCode::AbsoluteCoordinate);
+        break;
+    }
+    case Grbl::PositionMode::Relative:
+    {
+        sendGCode(GCode::RelativeCoordinate);
+        break;
+    }
+    }
+}
+
+void GrblInterface::setWorkCoordinate(const std::vector<PositionPair> &position)
+{
+    resetStringStream();
+    appendGCode(GCode::DefineWorkCoordinate);
+    extractPosition(position);
+    send();
+}
+
+void GrblInterface::resetWorkCoordinate()
+{
+    sendGCode(GCode::ResetWorkCoordinate);
+}
+
+void GrblInterface::linearMoveRapid(const std::vector<PositionPair> &position)
+{
+    resetStringStream();
+    appendGCode(GCode::LinearMoveRapid);
+    extractPosition(position);
+    send();
+}
+
+void GrblInterface::linearMoveFeedRate(float feedRate, const std::vector<PositionPair> &position)
+{
+    resetStringStream();
+    appendGCode(GCode::LinearMoveFeedRate);
+    m_stringStream << 'F' << feedRate;
+    extractPosition(position);
+    send();
+}
+
+void GrblInterface::linearMoveRapidInMachineCoordinate(const std::vector<PositionPair> &position)
+{
+    resetStringStream();
+    appendGCode(GCode::LinearMoveMachineCoordinate);
+    extractPosition(position);
+    send();
+}
+
+std::array<float, Grbl::NUMBER_OF_AXES> GrblInterface::getPosition()
+{
+    return m_position;
+}
+
+float GrblInterface::getPosition(const Grbl::Axis axis)
+{
+    return m_position[static_cast<int>(axis)];
+}
+
+char *GrblInterface::getMachineState(Grbl::MachineState machineState)
+{
+    if (machineState == Grbl::MachineState::Unknown)
+    {
+        return nullptr;
+    }
+
+    return Grbl::machineStates[static_cast<int>(machineState)];
+}
+
+Grbl::MachineState GrblInterface::getMachineState(char *state)
+{
+    for (auto i = 0; i < Grbl::machineStates.size(); i++)
+    {
+        if (strcmp(state, Grbl::machineStates[i]) == 0)
+        {
+            return static_cast<Grbl::MachineState>(i);
+        }
+    }
+
+    return Grbl::MachineState::Unknown;
+}
+
+char GrblInterface::getAxis(Grbl::Axis axis)
+{
+    if (axis == Grbl::Axis::Unknown)
+    {
+        return '\0';
+    }
+
+    return Grbl::axes[static_cast<int>(axis)];
+}
+
+Grbl::Axis GrblInterface::getAxis(char axis)
+{
+    for (auto i = 0; i < Grbl::axes.size(); i++)
+    {
+        if (axis == Grbl::axes[i])
+        {
+            return static_cast<Grbl::Axis>(i);
+        }
+    }
+
+    return Grbl::Axis::Unknown;
+}
+
+char *GrblInterface::getCoordinateMode(Grbl::CoordinateMode coordinateMode)
+{
+    return "";
+}
+
+Grbl::CoordinateMode GrblInterface::getCoordinateMode(char *coordinateMode)
+{
+    return Grbl::CoordinateMode::Unknown;
+}
+
+// --------------------------------------------------------------------------------------------------
+// Private methods
+// --------------------------------------------------------------------------------------------------
+
+void GrblInterface::resetStringStream()
+{
+    std::stringstream ss;
+    m_stringStream.swap(ss);
+    m_stringStream.setf(std::ios::fixed);
+    m_stringStream.precision(Grbl::FLOAT_PRECISION);
+}
+
+void GrblInterface::appendGCode(const GCode gCode)
+{
+    m_stringStream << Grbl::getGCode(gCode);
+}
+
+void GrblInterface::extractPosition(const std::vector<PositionPair> &position)
+{
+    std::for_each(position.begin(), position.end(), [this](const PositionPair &pos)
+                  { m_stringStream << getAxis(pos.first) << pos.second; });
+}
+
+void GrblInterface::sendGCode(const GCode gCode)
+{
+    m_stream->println(Grbl::getGCode(gCode));
+}
+
+void GrblInterface::send()
+{
+    m_stream->println(m_stringStream.str().c_str());
+}
+
+void GrblInterface::processPosition(const char *positionString)
+{
+    std::string pos(positionString);
+
+    if (std::count(pos.begin(), pos.end(), VALUE_SEPARATOR) != Grbl::NUMBER_OF_AXES - 1)
+    {
+        return;
+    }
+
+    std::stringstream ss(pos);
+    std::string position;
+
+    for (auto i = 0; i < Grbl::NUMBER_OF_AXES; i++)
+    {
+        std::getline(ss, position, VALUE_SEPARATOR);
+
+        if (!position.empty())
+        {
+            try
+            {
+                m_position[i] = std::stof(position);
+            }
+            catch (std::invalid_argument &e)
+            {
+                return;
+            }
+        }
+    }
 }
