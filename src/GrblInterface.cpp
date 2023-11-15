@@ -6,12 +6,13 @@
 
 namespace
 {
+    constexpr auto COORDINATE_SYSTEM_INDICATOR = 'P';
+    constexpr auto RADIUS_INDICATOR = 'R';
+    constexpr auto FEED_RATE_INDICATOR = 'F';
     constexpr auto VALUE_SEPARATOR = ',';
     constexpr auto OK_RESPONSE = "ok";
     constexpr auto ERROR_RESPONSE = "error";
-
     constexpr auto EOL = '\r';
-    constexpr auto STATUS_REPORT_COMMAND = '?';
     constexpr auto STATUS_REPORT_MIN_INTERVAL_MS = 200; // Limits the status report query to 5Hz, as recommended by Grbl.
 
     namespace RegEx
@@ -47,7 +48,7 @@ void GrblInterface::update(uint16_t timeout)
 
     if (millis() >= nextStatusReportRequestAt)
     {
-        m_stream->println(STATUS_REPORT_COMMAND);
+        sendCommand(Grbl::Command::StatusReport);
         nextStatusReportRequestAt = millis() + STATUS_REPORT_MIN_INTERVAL_MS;
     }
 
@@ -80,70 +81,156 @@ void GrblInterface::setUnitOfMeasurement(const Grbl::UnitOfMeasurement unitOfMea
 {
     switch (unitOfMeasurement)
     {
-    case Grbl::UnitOfMeasurement::Imperial:
+    case Grbl::UnitOfMeasurement::Inches:
     {
-        sendGCode(GCode::ImperialUnit);
+        sendCommand(Grbl::Command::G20_UnitsInches);
         break;
     }
-    case Grbl::UnitOfMeasurement::Metric:
+    case Grbl::UnitOfMeasurement::Millimeters:
     {
-        sendGCode(GCode::MetricUnit);
+        sendCommand(Grbl::Command::G21_UnitsMillimeters);
         break;
     }
     }
 }
 
-void GrblInterface::setPositionMode(Grbl::PositionMode positionMode)
+void GrblInterface::setDistanceMode(Grbl::DistanceMode distanceMode)
 {
-    switch (positionMode)
+    switch (distanceMode)
     {
-    case Grbl::PositionMode::Absolute:
+    case Grbl::DistanceMode::Absolute:
     {
-        sendGCode(GCode::AbsoluteCoordinate);
+        sendCommand(Grbl::Command::G90_DistanceModeAbsolute);
         break;
     }
-    case Grbl::PositionMode::Relative:
+    case Grbl::DistanceMode::Incremental:
     {
-        sendGCode(GCode::RelativeCoordinate);
+        sendCommand(Grbl::Command::G91_DistanceModeIncremental);
         break;
     }
     }
 }
 
-void GrblInterface::setWorkCoordinate(const std::vector<PositionPair> &position)
+void GrblInterface::setCoordinateOffset(const std::vector<PositionPair> &position)
 {
     resetStringStream();
-    appendGCode(GCode::DefineWorkCoordinate);
+    appendCommand(Grbl::Command::G92_CoordinateOffset);
     serializePosition(position);
     send();
 }
 
-void GrblInterface::resetWorkCoordinate()
+void GrblInterface::clearCoordinateOffset()
 {
-    sendGCode(GCode::ResetWorkCoordinate);
+    sendCommand(Grbl::Command::G92_1_ClearCoordinateSystemOffsets);
 }
 
-void GrblInterface::linearMoveRapid(const std::vector<PositionPair> &position)
+void GrblInterface::linearRapidPositioning(const std::vector<PositionPair> &position)
 {
     resetStringStream();
-    appendGCode(GCode::LinearMoveRapid);
+    appendCommand(Grbl::Command::G0_RapidPositioning);
     serializePosition(position);
     send();
 }
 
-void GrblInterface::linearMoveFeedRate(float feedRate, const std::vector<PositionPair> &position)
+void GrblInterface::linearInterpolationPositioning(float feedRate, const std::vector<PositionPair> &position)
 {
     resetStringStream();
-    appendGCode(GCode::LinearMoveFeedRate);
-    m_stringStream << 'F' << feedRate;
+    appendCommand(Grbl::Command::G1_LinearInterpolation);
+    appendValue(FEED_RATE_INDICATOR, feedRate);
     serializePosition(position);
     send();
 }
 
-void GrblInterface::linearMoveRapidInMachineCoordinate(const std::vector<PositionPair> &position)
+void GrblInterface::linearPositioningInMachineCoordinate(const std::vector<PositionPair> &position)
 {
     resetStringStream();
-    appendGCode(GCode::LinearMoveMachineCoordinate);
+    appendCommand(Grbl::Command::G53_MoveInAbsoluteCoordinates);
+    serializePosition(position);
+    send();
+}
+
+void GrblInterface::arcInterpolationPositioning(Grbl::ArcMovement direction,
+                                                const std::vector<PositionPair> &endPosition,
+                                                float radius,
+                                                float feedRate)
+{
+    resetStringStream();
+    switch (direction)
+    {
+    case Grbl::ArcMovement::Clockwise:
+    {
+        appendCommand(Grbl::Command::G2_ClockwiseCircularInterpolation);
+        break;
+    }
+    case Grbl::ArcMovement::CounterClockwise:
+    {
+        appendCommand(Grbl::Command::G3_CounterclockwiseCircularInterpolation);
+        break;
+    }
+    }
+
+    serializePosition(endPosition);
+    appendValue(RADIUS_INDICATOR, radius);
+    appendValue(FEED_RATE_INDICATOR, feedRate);
+    send();
+}
+
+void GrblInterface::arcInterpolationPositioning(Grbl::ArcMovement direction,
+                                                const std::vector<PositionPair> &endPosition,
+                                                Point centerPoint,
+                                                float feedRate)
+{
+    resetStringStream();
+    switch (direction)
+    {
+    case Grbl::ArcMovement::Clockwise:
+    {
+        appendCommand(Grbl::Command::G2_ClockwiseCircularInterpolation);
+        break;
+    }
+    case Grbl::ArcMovement::CounterClockwise:
+    {
+        appendCommand(Grbl::Command::G3_CounterclockwiseCircularInterpolation);
+        break;
+    }
+    }
+
+    serializePosition(endPosition);
+    appendValue('I', centerPoint.first);
+    appendValue('J', centerPoint.second);
+    appendValue(FEED_RATE_INDICATOR, feedRate);
+    send();
+}
+
+void GrblInterface::dwell(uint16_t durationMS)
+{
+    resetStringStream();
+    appendCommand(Grbl::Command::G4_Dwell);
+    appendValue('P', durationMS);
+    send();
+}
+
+void GrblInterface::setCoordinateSystemOrigin(Grbl::CoordinateOffset coordinateOffset,
+                                              Grbl::CoordinateSystem coordinateSystem,
+                                              const std::vector<PositionPair> &position)
+{
+    resetStringStream();
+
+    switch (coordinateOffset)
+    {
+    case Grbl::CoordinateOffset::Absolute:
+    {
+        appendCommand(Grbl::Command::G10_L2_SetWorkCoordinateOffsets);
+        break;
+    }
+    case Grbl::CoordinateOffset::Relative:
+    {
+        appendCommand(Grbl::Command::G10_L20_SetWorkCoordinateOffsets);
+        break;
+    }
+    }
+
+    appendValue(COORDINATE_SYSTEM_INDICATOR, (static_cast<int>(coordinateSystem) + 1));
     serializePosition(position);
     send();
 }
@@ -151,8 +238,8 @@ void GrblInterface::linearMoveRapidInMachineCoordinate(const std::vector<Positio
 void GrblInterface::jog(float feedRate, const std::vector<PositionPair> &position)
 {
     resetStringStream();
-    appendGCode(GCode::Jog);
-    m_stringStream << 'F' << feedRate;
+    appendCommand(Grbl::Command::RunJoggingMotion);
+    appendValue(FEED_RATE_INDICATOR, feedRate);
     serializePosition(position);
     send();
 }
@@ -167,17 +254,45 @@ float GrblInterface::getCurrentSpindleSpeed()
     return m_currentSpindleSpeed;
 }
 
-Coordinate GrblInterface::getPosition()
+Coordinate &GrblInterface::getWorkCoordinate()
 {
-    return m_position;
+    return m_workCoordinate;
 }
 
-float GrblInterface::getPosition(const Grbl::Axis axis)
+float GrblInterface::getWorkCoordinate(const Grbl::Axis axis)
 {
-    return m_position[static_cast<int>(axis)];
+    if (axis == Grbl::Axis::Unknown)
+    {
+        return 0;
+    }
+
+    return m_workCoordinate[static_cast<int>(axis)];
 }
 
-Coordinate GrblInterface::getWorkCoordinateOffset()
+Coordinate &GrblInterface::getMachineCoordinate()
+{
+    Coordinate machineCoordinate;
+
+    for (auto i = 0; i < Grbl::MAX_NUMBER_OF_AXES; i++)
+    {
+        machineCoordinate[i] = toMachineCoordinate(m_workCoordinate[i], m_workCoordinateOffset[i]);
+    }
+
+    return machineCoordinate;
+}
+
+float GrblInterface::getMachineCoordinate(const Grbl::Axis axis)
+{
+    if (axis == Grbl::Axis::Unknown)
+    {
+        return 0;
+    }
+
+    const auto i = static_cast<int>(axis);
+    return toMachineCoordinate(m_workCoordinate[i], m_workCoordinateOffset[i]);
+}
+
+Coordinate &GrblInterface::getWorkCoordinateOffset()
 {
     return m_workCoordinateOffset;
 }
@@ -306,7 +421,15 @@ void GrblInterface::processBuffer()
         }
 
         ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_POSITION);
-        extractPosition(tempBuffer, &m_position);
+        extractPosition(tempBuffer, &m_workCoordinate);
+
+        if (coordinateMode == Grbl::CoordinateMode::Machine)
+        {
+            for (auto i = 0; i < Grbl::MAX_NUMBER_OF_AXES; i++)
+            {
+                m_workCoordinate[i] = toWorkCoordinate(m_workCoordinate[i], m_workCoordinateOffset[i]);
+            }
+        }
 
         if (onPositionUpdate)
         {
@@ -323,20 +446,30 @@ void GrblInterface::resetStringStream()
     m_stringStream.precision(Grbl::FLOAT_PRECISION);
 }
 
-void GrblInterface::appendGCode(const GCode gCode)
+void GrblInterface::appendCommand(const Grbl::Command command, char postpend)
 {
-    m_stringStream << Grbl::getGCode(gCode);
+    m_stringStream << Grbl::getCommand(command) << postpend;
+}
+
+void GrblInterface::appendValue(char indicator, float value, char postpend)
+{
+    m_stringStream << indicator << value << postpend;
+}
+
+void GrblInterface::appendValue(char indicator, int value, char postpend)
+{
+    m_stringStream << indicator << value << postpend;
 }
 
 void GrblInterface::serializePosition(const std::vector<PositionPair> &position)
 {
     std::for_each(position.begin(), position.end(), [this](const PositionPair &pos)
-                  { m_stringStream << getAxis(pos.first) << pos.second; });
+                  { m_stringStream << getAxis(pos.first) << pos.second << ' '; });
 }
 
-void GrblInterface::sendGCode(const GCode gCode)
+void GrblInterface::sendCommand(const Grbl::Command command)
 {
-    m_stream->println(Grbl::getGCode(gCode));
+    m_stream->println(Grbl::getCommand(command));
 }
 
 void GrblInterface::send()
@@ -372,4 +505,16 @@ void GrblInterface::extractPosition(const char *positionString, Coordinate *posi
             }
         }
     }
+}
+
+float GrblInterface::toWorkCoordinate(float machineCoordinate, float offset)
+{
+    // WPos = MPos - WCO
+    return machineCoordinate - offset;
+}
+
+float GrblInterface::toMachineCoordinate(float workCoordinate, float offset)
+{
+    // MPos = WPos + WCO
+    return workCoordinate + offset;
 }

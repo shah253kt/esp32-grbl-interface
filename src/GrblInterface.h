@@ -2,7 +2,7 @@
 
 #include "Arduino.h"
 #include "GrblConstants.h"
-#include "GCode.h"
+#include "GrblCommands.h"
 
 #include <sstream>
 #include <vector>
@@ -13,6 +13,7 @@
 
 using PositionPair = std::pair<Grbl::Axis, float>;
 using Coordinate = std::array<float, Grbl::MAX_NUMBER_OF_AXES>;
+using Point = std::pair<float, float>;
 
 class GrblInterface
 {
@@ -22,32 +23,50 @@ public:
     void update(uint16_t timeout = Grbl::DEFAULT_TIMEOUT_MS);
 
     void setUnitOfMeasurement(Grbl::UnitOfMeasurement unitOfMeasurement);
-    void setPositionMode(Grbl::PositionMode positionMode);
+    void setDistanceMode(Grbl::DistanceMode distanceMode);
 
-    void setWorkCoordinate(const std::vector<PositionPair> &position);
-    void resetWorkCoordinate();
+    void setCoordinateOffset(const std::vector<PositionPair> &position);
+    void clearCoordinateOffset();
 
-    void linearMoveRapid(const std::vector<PositionPair> &position);
-    void linearMoveFeedRate(float feedRate, const std::vector<PositionPair> &position);
-    void linearMoveRapidInMachineCoordinate(const std::vector<PositionPair> &position);
+    void linearRapidPositioning(const std::vector<PositionPair> &position);
+    void linearInterpolationPositioning(float feedRate, const std::vector<PositionPair> &position);
+    void linearPositioningInMachineCoordinate(const std::vector<PositionPair> &position);
+
+    void arcInterpolationPositioning(Grbl::ArcMovement direction,
+                                     const std::vector<PositionPair> &endPosition,
+                                     float radius,
+                                     float feedRate);
+    void arcInterpolationPositioning(Grbl::ArcMovement direction,
+                                     const std::vector<PositionPair> &endPosition,
+                                     Point centerPoint,
+                                     float feedRate);
+
+    void dwell(uint16_t durationMS);
+
+    void setCoordinateSystemOrigin(Grbl::CoordinateOffset coordinateOffset,
+                                   Grbl::CoordinateSystem coordinateSystem,
+                                   const std::vector<PositionPair> &position);
 
     void jog(float feedRate, const std::vector<PositionPair> &position);
 
     [[nodiscard]] float getCurrentFeedRate();
     [[nodiscard]] float getCurrentSpindleSpeed();
 
-    [[nodiscard]] Coordinate getPosition();
-    [[nodiscard]] float getPosition(Grbl::Axis axis);
+    [[nodiscard]] Coordinate &getWorkCoordinate();
+    [[nodiscard]] float getWorkCoordinate(Grbl::Axis axis);
 
-    [[nodiscard]] Coordinate getWorkCoordinateOffset();
+    [[nodiscard]] Coordinate &getMachineCoordinate();
+    [[nodiscard]] float getMachineCoordinate(Grbl::Axis axis);
+
+    [[nodiscard]] Coordinate &getWorkCoordinateOffset();
     [[nodiscard]] float getWorkCoordinateOffset(Grbl::Axis axis);
 
     [[nodiscard]] char *getMachineState(Grbl::MachineState machineState);
     [[nodiscard]] Grbl::MachineState getMachineState(char *state);
-    
+
     [[nodiscard]] char getAxis(Grbl::Axis axis);
     [[nodiscard]] Grbl::Axis getAxis(char axis);
-    
+
     [[nodiscard]] char *getCoordinateMode(Grbl::CoordinateMode coordinateMode);
     [[nodiscard]] Grbl::CoordinateMode getCoordinateMode(char *coordinateMode);
 
@@ -58,7 +77,7 @@ public:
 private:
     Stream *m_stream;
     std::string m_buffer;
-    Coordinate m_position;
+    Coordinate m_workCoordinate;
     Coordinate m_workCoordinateOffset;
     std::stringstream m_stringStream;
     float m_currentFeedRate;
@@ -66,9 +85,13 @@ private:
 
     void processBuffer();
     void resetStringStream();
-    void appendGCode(GCode gCode);
+    void appendCommand(Grbl::Command command, char postpend = ' ');
+    void appendValue(char indicator, float value, char postpend = ' ');
+    void appendValue(char indicator, int value, char postpend = ' ');
     void serializePosition(const std::vector<PositionPair> &position);
-    void sendGCode(GCode gCode);
+    void sendCommand(Grbl::Command command);
     void send();
     void extractPosition(const char *positionString, Coordinate *positionArray);
+    [[nodiscard]] float toWorkCoordinate(float machineCoordinate, float offset);
+    [[nodiscard]] float toMachineCoordinate(float workCoordinate, float offset);
 };

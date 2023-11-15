@@ -10,8 +10,8 @@ namespace Grbl
 
     enum class UnitOfMeasurement
     {
-        Metric,
-        Imperial
+        Inches,
+        Millimeters
     };
 
     enum class MachineState
@@ -61,9 +61,31 @@ namespace Grbl
 
     inline constexpr std::array<char *, 3> coordinateModes = {"MPos", "WPos", "WCO"};
 
-    enum class PositionMode
+    enum class DistanceMode
+    {
+        Absolute,
+        Incremental
+    };
+
+    enum class ArcMovement
+    {
+        Clockwise,
+        CounterClockwise
+    };
+
+    enum class CoordinateOffset
     {
         Absolute,
         Relative
+    };
+
+    enum class CoordinateSystem
+    {
+        P1,
+        P2,
+        P3,
+        P4,
+        P5,
+        P6
     };
 }

@@ -19,24 +19,31 @@ void setup() {
                              const Grbl::CoordinateMode coordinateMode) {
     Serial.print("Machine state: ");
     Serial.println(grbl.getMachineState(machineState));
+
     Serial.print("Position mode: ");
     Serial.println(grbl.getCoordinateMode(coordinateMode));
-    Serial.print("Position: ");
 
-    for (const auto &coordinate : grbl.getPosition()) {
+    Serial.print("Work coordinate: ");
+    for (const auto &coordinate : grbl.getWorkCoordinate()) {
+      Serial.print(coordinate);
+      Serial.print(' ');
+    }
+
+    Serial.print("Machine coordinate: ");
+    for (const auto &coordinate : grbl.getMachineCoordinate()) {
       Serial.print(coordinate);
       Serial.print(' ');
     }
 
     Serial.print("\nWork Coordinate Offset: ");
-
     for (const auto &coordinate : grbl.getWorkCoordinateOffset()) {
       Serial.print(coordinate);
       Serial.print(' ');
     }
-    
+
     Serial.print("\nCurrent feed rate: ");
     Serial.println(grbl.getCurrentFeedRate());
+
     Serial.print("Current spindle speed: ");
     Serial.println(grbl.getCurrentSpindleSpeed());
 
@@ -47,19 +54,31 @@ void setup() {
 void loop() {
   grbl.update();
 
-  grbl.setUnitOfMeasurement(Grbl::UnitOfMeasurement::Imperial);
-  grbl.setUnitOfMeasurement(Grbl::UnitOfMeasurement::Metric);
+  // G-codes
+  grbl.setUnitOfMeasurement(Grbl::UnitOfMeasurement::Inches);
+  grbl.setUnitOfMeasurement(Grbl::UnitOfMeasurement::Millimeters);
 
-  grbl.setPositionMode(Grbl::PositionMode::Absolute);
-  grbl.setPositionMode(Grbl::PositionMode::Relative);
+  grbl.setDistanceMode(Grbl::DistanceMode::Absolute);
+  grbl.setDistanceMode(Grbl::DistanceMode::Incremental);
 
-  grbl.resetWorkCoordinate();
-  grbl.setWorkCoordinate({ { Grbl::Axis::X, 1.234 }, { Grbl::Axis::Y, 56.789 } });
+  grbl.clearCoordinateOffset();
+  grbl.setCoordinateOffset({ { Grbl::Axis::X, 1.234 }, { Grbl::Axis::Y, 56.789 } });
 
-  grbl.linearMoveRapid({ { Grbl::Axis::X, 1.234 }, { Grbl::Axis::Y, 56.789 } });
-  grbl.linearMoveFeedRate(200.00, { { Grbl::Axis::X, 1.234 }, { Grbl::Axis::Y, 56.789 } });
-  grbl.linearMoveRapidInMachineCoordinate({ { Grbl::Axis::X, 1.234 }, { Grbl::Axis::Y, 56.789 } });
+  grbl.linearRapidPositioning({ { Grbl::Axis::X, 1.234 }, { Grbl::Axis::Y, 56.789 } });
+  grbl.linearInterpolationPositioning(200.00, { { Grbl::Axis::X, 1.234 }, { Grbl::Axis::Y, 56.789 } });
+  grbl.linearPositioningInMachineCoordinate({ { Grbl::Axis::X, 1.234 }, { Grbl::Axis::Y, 56.789 } });
 
+  grbl.arcInterpolationPositioning(Grbl::ArcMovement::Clockwise, { { Grbl::Axis::X, 10.00 }, { Grbl::Axis::Y, 10.00 } }, 5.00, 10.00);
+  grbl.arcInterpolationPositioning(Grbl::ArcMovement::CounterClockwise, { { Grbl::Axis::X, 10.00 }, { Grbl::Axis::Y, 10.00 } }, { 5.0, 5.0 }, 10.00);
+
+  grbl.dwell(3000);
+
+  grbl.setCoordinateSystemOrigin(Grbl::CoordinateOffset::Absolute, Grbl::CoordinateSystem::P1, { { Grbl::Axis::X, 0.00 }, { Grbl::Axis::Y, 0.00 }, { Grbl::Axis::Z, 0.00 } });
+  grbl.setCoordinateSystemOrigin(Grbl::CoordinateOffset::Relative, Grbl::CoordinateSystem::P2, { { Grbl::Axis::X, 0.00 }, { Grbl::Axis::Y, 0.00 }, { Grbl::Axis::Z, 0.00 } });
+
+  // M-codes
+  
+  // $ commands
   grbl.jog(100.00, { { Grbl::Axis::X, 0.01 } });
 
   grbl.test();
