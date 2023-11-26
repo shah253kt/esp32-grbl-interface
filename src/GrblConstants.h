@@ -88,4 +88,11 @@ namespace Grbl
         P5,
         P6
     };
+
+    enum class Plane
+    {
+        XY,
+        ZX,
+        YZ,
+    };
 }

@@ -47,6 +47,8 @@ public:
                                    Grbl::CoordinateSystem coordinateSystem,
                                    const std::vector<PositionPair> &position);
 
+    void setPlane(Grbl::Plane plane);
+
     void jog(float feedRate, const std::vector<PositionPair> &position);
 
     [[nodiscard]] float getCurrentFeedRate();

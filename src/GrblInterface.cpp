@@ -235,6 +235,28 @@ void GrblInterface::setCoordinateSystemOrigin(Grbl::CoordinateOffset coordinateO
     send();
 }
 
+void GrblInterface::setPlane(Grbl::Plane plane)
+{
+    switch (plane)
+    {
+    case Grbl::Plane::XY:
+    {
+        sendCommand(Grbl::Command::G17_PlaneSelectionXY);
+        break;
+    }
+    case Grbl::Plane::ZX:
+    {
+        sendCommand(Grbl::Command::G18_PlaneSelectionZX);
+        break;
+    }
+    case Grbl::Plane::YZ:
+    {
+        sendCommand(Grbl::Command::G19_PlaneSelectionYZ);
+        break;
+    }
+    }
+}
+
 void GrblInterface::jog(float feedRate, const std::vector<PositionPair> &position)
 {
     resetStringStream();
