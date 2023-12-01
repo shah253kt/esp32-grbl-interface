@@ -14,6 +14,7 @@ GrblInterface grbl(Serial);
 
 void setup() {
   Serial.begin(115200);
+  Serial2.begin(115200);
 
   grbl.onPositionUpdate = [](const Grbl::MachineState machineState,
                              const Grbl::CoordinateMode coordinateMode) {
@@ -77,8 +78,13 @@ void loop() {
   grbl.setCoordinateSystemOrigin(Grbl::CoordinateOffset::Relative, Grbl::CoordinateSystem::P2, { { Grbl::Axis::X, 0.00 }, { Grbl::Axis::Y, 0.00 }, { Grbl::Axis::Z, 0.00 } });
 
   // M-codes
+  grbl.spindleOn();
+  grbl.spindleOn(RotationDirection::CounterClockwise);
+  grbl.spindleOff();
   
   // $ commands
+  grbl.runHomingCycle();
+  grbl.clearAlarm();
   grbl.jog(100.00, { { Grbl::Axis::X, 0.01 } });
 
   grbl.test();
