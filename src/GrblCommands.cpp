@@ -55,7 +55,7 @@ constexpr std::array<char *, 59> commands = {
     "$N",      // ViewStartupBlocks
     "$Nx",     // SaveStartupBlock
     "$C",      // CheckGcodeMode
-    "$X",      // KillAlarmLock
+    "$X",      // ClearAlarmLock
     "$H",      // RunHomingCycle
     "$J=",     // RunJoggingMotion
     "$RST=$",  // RestoreGrblSettingsToDefault

@@ -257,6 +257,38 @@ void GrblInterface::setPlane(Grbl::Plane plane)
     }
 }
 
+void GrblInterface::spindleOn(RotationDirection direction)
+{
+    switch (direction)
+    {
+    case RotationDirection::Clockwise:
+    {
+        sendCommand(Grbl::Command::M3_SpindleControlCW);
+        break;
+    }
+    case RotationDirection::CounterClockwise:
+    {
+        sendCommand(Grbl::Command::M4_SpindleControlCCW);
+        break;
+    }
+    }
+}
+
+void GrblInterface::spindleOff()
+{
+    sendCommand(Grbl::Command::M5_SpindleStop);
+}
+
+void GrblInterface::runHomingCycle()
+{
+    sendCommand(Grbl::Command::RunHomingCycle);
+}
+
+void GrblInterface::clearAlarm()
+{
+    sendCommand(Grbl::Command::ClearAlarmLock);
+}
+
 void GrblInterface::jog(float feedRate, const std::vector<PositionPair> &position)
 {
     resetStringStream();
@@ -293,14 +325,12 @@ float GrblInterface::getWorkCoordinate(const Grbl::Axis axis)
 
 Coordinate &GrblInterface::getMachineCoordinate()
 {
-    Coordinate machineCoordinate;
-
     for (auto i = 0; i < Grbl::MAX_NUMBER_OF_AXES; i++)
     {
-        machineCoordinate[i] = toMachineCoordinate(m_workCoordinate[i], m_workCoordinateOffset[i]);
+        m_machineCoordinate[i] = toMachineCoordinate(m_workCoordinate[i], m_workCoordinateOffset[i]);
     }
 
-    return machineCoordinate;
+    return m_machineCoordinate;
 }
 
 float GrblInterface::getMachineCoordinate(const Grbl::Axis axis)
