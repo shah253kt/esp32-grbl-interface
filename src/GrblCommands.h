@@ -55,6 +55,8 @@ namespace Grbl
 
         // $-code
         StatusReport,
+        Pause,
+        Resume,
         ViewGcodeParameters,
         ViewGcodeParserState,
         ViewBuildInfo,

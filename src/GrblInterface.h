@@ -22,6 +22,9 @@ public:
 
     void update(uint16_t timeout = Grbl::DEFAULT_TIMEOUT_MS);
 
+    void pause();
+    void resume();
+
     void setUnitOfMeasurement(Grbl::UnitOfMeasurement unitOfMeasurement);
     void setDistanceMode(Grbl::DistanceMode distanceMode);
 

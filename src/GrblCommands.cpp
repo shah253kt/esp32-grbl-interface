@@ -2,7 +2,7 @@
 
 #include <array>
 
-constexpr std::array<char *, 59> commands = {
+constexpr std::array<char *, 61> commands = {
     "G0",      // G0_RapidPositioning
     "G1",      // G1_LinearInterpolation
     "G2",      // G2_ClockwiseCircularInterpolation
@@ -49,6 +49,8 @@ constexpr std::array<char *, 59> commands = {
     "M8",      // M8_CoolantControlFlood
     "M9",      // M9_CoolantControlStop
     "?",       // StatusReport
+    "!",       // Pause
+    "~",       // Resume
     "$",       // ViewGcodeParameters
     "$G",      // ViewGcodeParserState
     "$I",      // ViewBuildInfo

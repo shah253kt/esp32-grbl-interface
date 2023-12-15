@@ -77,6 +77,14 @@ void GrblInterface::update(uint16_t timeout)
     m_buffer.append(ss.str());
 }
 
+void GrblInterface::pause() {
+    sendCommand(Grbl::Command::Pause);
+}
+
+void GrblInterface::resume() {
+    sendCommand(Grbl::Command::Resume);
+}
+
 void GrblInterface::setUnitOfMeasurement(const Grbl::UnitOfMeasurement unitOfMeasurement)
 {
     switch (unitOfMeasurement)
