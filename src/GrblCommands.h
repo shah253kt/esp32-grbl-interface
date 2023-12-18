@@ -63,7 +63,7 @@ namespace Grbl
         ViewStartupBlocks,
         SaveStartupBlock,
         CheckGcodeMode,
-        KillAlarmLock,
+        ClearAlarmLock,
         RunHomingCycle,
         RunJoggingMotion,
         RestoreGrblSettingsToDefault,

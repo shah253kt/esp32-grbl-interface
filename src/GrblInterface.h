@@ -15,6 +15,11 @@ using PositionPair = std::pair<Grbl::Axis, float>;
 using Coordinate = std::array<float, Grbl::MAX_NUMBER_OF_AXES>;
 using Point = std::pair<float, float>;
 
+enum class RotationDirection {
+    Clockwise,
+    CounterClockwise
+};
+
 class GrblInterface
 {
 public:
@@ -52,6 +57,13 @@ public:
 
     void setPlane(Grbl::Plane plane);
 
+    // M-codes
+    void spindleOn(RotationDirection direction = RotationDirection::Clockwise);
+    void spindleOff();
+
+    // $ commands
+    void runHomingCycle();
+    void clearAlarm();
     void jog(float feedRate, const std::vector<PositionPair> &position);
 
     [[nodiscard]] float getCurrentFeedRate();
@@ -84,6 +96,7 @@ private:
     std::string m_buffer;
     Coordinate m_workCoordinate;
     Coordinate m_workCoordinateOffset;
+    Coordinate m_machineCoordinate;
     std::stringstream m_stringStream;
     float m_currentFeedRate;
     float m_currentSpindleSpeed;
