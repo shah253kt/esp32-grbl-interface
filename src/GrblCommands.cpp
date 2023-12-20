@@ -2,7 +2,7 @@
 
 #include <array>
 
-constexpr std::array<char *, 61> commands = {
+constexpr std::array<char *, 63> commands = {
     "G0",      // G0_RapidPositioning
     "G1",      // G1_LinearInterpolation
     "G2",      // G2_ClockwiseCircularInterpolation
@@ -55,7 +55,7 @@ constexpr std::array<char *, 61> commands = {
     "$G",      // ViewGcodeParserState
     "$I",      // ViewBuildInfo
     "$N",      // ViewStartupBlocks
-    "$Nx",     // SaveStartupBlock
+    "$N",      // SaveStartupBlock
     "$C",      // CheckGcodeMode
     "$X",      // ClearAlarmLock
     "$H",      // RunHomingCycle
@@ -63,7 +63,9 @@ constexpr std::array<char *, 61> commands = {
     "$RST=$",  // RestoreGrblSettingsToDefault
     "$RST=#",  // RestoreGrblSettingsAndCoordinateOffsets
     "$RST=*",  // RestoreAllGrblSettingsAndData
-    "$SLP"     // EnableSleepMode
+    "$SLP",    // EnableSleepMode
+    "\x18",    // SoftReset
+    "$Bye"     // RebootProcessor
 };
 
 char *Grbl::getCommand(const Command command)

@@ -69,7 +69,9 @@ namespace Grbl
         RestoreGrblSettingsToDefault,
         RestoreGrblSettingsAndCoordinateOffsets,
         RestoreAllGrblSettingsAndData,
-        EnableSleepMode
+        EnableSleepMode,
+        SoftReset,
+        RebootProcessor
     };
 
     [[nodiscard]] char *getCommand(Command command);

@@ -15,7 +15,8 @@ using PositionPair = std::pair<Grbl::Axis, float>;
 using Coordinate = std::array<float, Grbl::MAX_NUMBER_OF_AXES>;
 using Point = std::pair<float, float>;
 
-enum class RotationDirection {
+enum class RotationDirection
+{
     Clockwise,
     CounterClockwise
 };
@@ -27,44 +28,46 @@ public:
 
     void update(uint16_t timeout = Grbl::DEFAULT_TIMEOUT_MS);
 
-    void pause();
-    void resume();
+    // G-codes
+    [[nodiscard]] bool setUnitOfMeasurement(Grbl::UnitOfMeasurement unitOfMeasurement);
+    [[nodiscard]] bool setDistanceMode(Grbl::DistanceMode distanceMode);
 
-    void setUnitOfMeasurement(Grbl::UnitOfMeasurement unitOfMeasurement);
-    void setDistanceMode(Grbl::DistanceMode distanceMode);
+    [[nodiscard]] bool setCoordinateOffset(const std::vector<PositionPair> &position);
+    [[nodiscard]] bool clearCoordinateOffset();
 
-    void setCoordinateOffset(const std::vector<PositionPair> &position);
-    void clearCoordinateOffset();
+    [[nodiscard]] bool linearRapidPositioning(const std::vector<PositionPair> &position);
+    [[nodiscard]] bool linearInterpolationPositioning(float feedRate, const std::vector<PositionPair> &position);
+    [[nodiscard]] bool linearPositioningInMachineCoordinate(const std::vector<PositionPair> &position);
 
-    void linearRapidPositioning(const std::vector<PositionPair> &position);
-    void linearInterpolationPositioning(float feedRate, const std::vector<PositionPair> &position);
-    void linearPositioningInMachineCoordinate(const std::vector<PositionPair> &position);
+    [[nodiscard]] bool arcInterpolationPositioning(Grbl::ArcMovement direction,
+                                                   const std::vector<PositionPair> &endPosition,
+                                                   float radius,
+                                                   float feedRate);
+    [[nodiscard]] bool arcInterpolationPositioning(Grbl::ArcMovement direction,
+                                                   const std::vector<PositionPair> &endPosition,
+                                                   Point centerPoint,
+                                                   float feedRate);
 
-    void arcInterpolationPositioning(Grbl::ArcMovement direction,
-                                     const std::vector<PositionPair> &endPosition,
-                                     float radius,
-                                     float feedRate);
-    void arcInterpolationPositioning(Grbl::ArcMovement direction,
-                                     const std::vector<PositionPair> &endPosition,
-                                     Point centerPoint,
-                                     float feedRate);
+    [[nodiscard]] bool dwell(uint16_t durationSeconds);
 
-    void dwell(uint16_t durationMS);
-
-    void setCoordinateSystemOrigin(Grbl::CoordinateOffset coordinateOffset,
+    [[nodiscard]] bool setCoordinateSystemOrigin(Grbl::CoordinateOffset coordinateOffset,
                                    Grbl::CoordinateSystem coordinateSystem,
                                    const std::vector<PositionPair> &position);
 
-    void setPlane(Grbl::Plane plane);
+    [[nodiscard]] bool setPlane(Grbl::Plane plane);
 
     // M-codes
-    void spindleOn(RotationDirection direction = RotationDirection::Clockwise);
-    void spindleOff();
+    [[nodiscard]] bool spindleOn(RotationDirection direction = RotationDirection::Clockwise);
+    [[nodiscard]] bool spindleOff();
 
     // $ commands
-    void runHomingCycle();
-    void clearAlarm();
-    void jog(float feedRate, const std::vector<PositionPair> &position);
+    [[nodiscard]] bool reboot();
+    [[nodiscard]] bool softReset();
+    [[nodiscard]] bool pause();
+    [[nodiscard]] bool resume();
+    [[nodiscard]] bool runHomingCycle();
+    [[nodiscard]] bool clearAlarm();
+    [[nodiscard]] bool jog(float feedRate, const std::vector<PositionPair> &position);
 
     [[nodiscard]] float getCurrentFeedRate();
     [[nodiscard]] float getCurrentSpindleSpeed();
@@ -107,8 +110,9 @@ private:
     void appendValue(char indicator, float value, char postpend = ' ');
     void appendValue(char indicator, int value, char postpend = ' ');
     void serializePosition(const std::vector<PositionPair> &position);
-    void sendCommand(Grbl::Command command);
     void send();
+    [[nodiscard]] bool sendCommand(Grbl::Command command, bool waitForResponse = true);
+    [[nodiscard]] bool sendWaitingForOkResponse(uint16_t timeout);
     void extractPosition(const char *positionString, Coordinate *positionArray);
     [[nodiscard]] float toWorkCoordinate(float machineCoordinate, float offset);
     [[nodiscard]] float toMachineCoordinate(float workCoordinate, float offset);

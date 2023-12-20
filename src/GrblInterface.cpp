@@ -14,6 +14,7 @@ namespace
     constexpr auto ERROR_RESPONSE = "error";
     constexpr auto EOL = '\r';
     constexpr auto STATUS_REPORT_MIN_INTERVAL_MS = 200; // Limits the status report query to 5Hz, as recommended by Grbl.
+    constexpr auto RESPONSE_TIMEOUT = 50;
 
     namespace RegEx
     {
@@ -48,7 +49,7 @@ void GrblInterface::update(uint16_t timeout)
 
     if (millis() >= nextStatusReportRequestAt)
     {
-        sendCommand(Grbl::Command::StatusReport);
+        sendCommand(Grbl::Command::StatusReport, false);
         nextStatusReportRequestAt = millis() + STATUS_REPORT_MIN_INTERVAL_MS;
     }
 
@@ -77,49 +78,38 @@ void GrblInterface::update(uint16_t timeout)
     m_buffer.append(ss.str());
 }
 
-void GrblInterface::pause() {
-    sendCommand(Grbl::Command::Pause);
-}
-
-void GrblInterface::resume() {
-    sendCommand(Grbl::Command::Resume);
-}
-
-void GrblInterface::setUnitOfMeasurement(const Grbl::UnitOfMeasurement unitOfMeasurement)
+// G-codes
+bool GrblInterface::setUnitOfMeasurement(const Grbl::UnitOfMeasurement unitOfMeasurement)
 {
     switch (unitOfMeasurement)
     {
     case Grbl::UnitOfMeasurement::Inches:
     {
-        sendCommand(Grbl::Command::G20_UnitsInches);
-        break;
+        return sendCommand(Grbl::Command::G20_UnitsInches);
     }
     case Grbl::UnitOfMeasurement::Millimeters:
     {
-        sendCommand(Grbl::Command::G21_UnitsMillimeters);
-        break;
+        return sendCommand(Grbl::Command::G21_UnitsMillimeters);
     }
     }
 }
 
-void GrblInterface::setDistanceMode(Grbl::DistanceMode distanceMode)
+bool GrblInterface::setDistanceMode(Grbl::DistanceMode distanceMode)
 {
     switch (distanceMode)
     {
     case Grbl::DistanceMode::Absolute:
     {
-        sendCommand(Grbl::Command::G90_DistanceModeAbsolute);
-        break;
+        return sendCommand(Grbl::Command::G90_DistanceModeAbsolute);
     }
     case Grbl::DistanceMode::Incremental:
     {
-        sendCommand(Grbl::Command::G91_DistanceModeIncremental);
-        break;
+        return sendCommand(Grbl::Command::G91_DistanceModeIncremental);
     }
     }
 }
 
-void GrblInterface::setCoordinateOffset(const std::vector<PositionPair> &position)
+bool GrblInterface::setCoordinateOffset(const std::vector<PositionPair> &position)
 {
     resetStringStream();
     appendCommand(Grbl::Command::G92_CoordinateOffset);
@@ -127,37 +117,37 @@ void GrblInterface::setCoordinateOffset(const std::vector<PositionPair> &positio
     send();
 }
 
-void GrblInterface::clearCoordinateOffset()
+bool GrblInterface::clearCoordinateOffset()
 {
     sendCommand(Grbl::Command::G92_1_ClearCoordinateSystemOffsets);
 }
 
-void GrblInterface::linearRapidPositioning(const std::vector<PositionPair> &position)
+bool GrblInterface::linearRapidPositioning(const std::vector<PositionPair> &position)
 {
     resetStringStream();
     appendCommand(Grbl::Command::G0_RapidPositioning);
     serializePosition(position);
-    send();
+    return sendWaitingForOkResponse(RESPONSE_TIMEOUT);
 }
 
-void GrblInterface::linearInterpolationPositioning(float feedRate, const std::vector<PositionPair> &position)
+bool GrblInterface::linearInterpolationPositioning(float feedRate, const std::vector<PositionPair> &position)
 {
     resetStringStream();
     appendCommand(Grbl::Command::G1_LinearInterpolation);
     appendValue(FEED_RATE_INDICATOR, feedRate);
     serializePosition(position);
-    send();
+    return sendWaitingForOkResponse(RESPONSE_TIMEOUT);
 }
 
-void GrblInterface::linearPositioningInMachineCoordinate(const std::vector<PositionPair> &position)
+bool GrblInterface::linearPositioningInMachineCoordinate(const std::vector<PositionPair> &position)
 {
     resetStringStream();
     appendCommand(Grbl::Command::G53_MoveInAbsoluteCoordinates);
     serializePosition(position);
-    send();
+    return sendWaitingForOkResponse(RESPONSE_TIMEOUT);
 }
 
-void GrblInterface::arcInterpolationPositioning(Grbl::ArcMovement direction,
+bool GrblInterface::arcInterpolationPositioning(Grbl::ArcMovement direction,
                                                 const std::vector<PositionPair> &endPosition,
                                                 float radius,
                                                 float feedRate)
@@ -180,10 +170,10 @@ void GrblInterface::arcInterpolationPositioning(Grbl::ArcMovement direction,
     serializePosition(endPosition);
     appendValue(RADIUS_INDICATOR, radius);
     appendValue(FEED_RATE_INDICATOR, feedRate);
-    send();
+    return sendWaitingForOkResponse(RESPONSE_TIMEOUT);
 }
 
-void GrblInterface::arcInterpolationPositioning(Grbl::ArcMovement direction,
+bool GrblInterface::arcInterpolationPositioning(Grbl::ArcMovement direction,
                                                 const std::vector<PositionPair> &endPosition,
                                                 Point centerPoint,
                                                 float feedRate)
@@ -207,18 +197,18 @@ void GrblInterface::arcInterpolationPositioning(Grbl::ArcMovement direction,
     appendValue('I', centerPoint.first);
     appendValue('J', centerPoint.second);
     appendValue(FEED_RATE_INDICATOR, feedRate);
-    send();
+    return sendWaitingForOkResponse(RESPONSE_TIMEOUT);
 }
 
-void GrblInterface::dwell(uint16_t durationMS)
+bool GrblInterface::dwell(uint16_t durationSeconds)
 {
     resetStringStream();
     appendCommand(Grbl::Command::G4_Dwell);
-    appendValue('P', durationMS);
-    send();
+    appendValue('P', durationSeconds);
+    return sendWaitingForOkResponse(RESPONSE_TIMEOUT);
 }
 
-void GrblInterface::setCoordinateSystemOrigin(Grbl::CoordinateOffset coordinateOffset,
+bool GrblInterface::setCoordinateSystemOrigin(Grbl::CoordinateOffset coordinateOffset,
                                               Grbl::CoordinateSystem coordinateSystem,
                                               const std::vector<PositionPair> &position)
 {
@@ -240,70 +230,87 @@ void GrblInterface::setCoordinateSystemOrigin(Grbl::CoordinateOffset coordinateO
 
     appendValue(COORDINATE_SYSTEM_INDICATOR, (static_cast<int>(coordinateSystem) + 1));
     serializePosition(position);
-    send();
+    return sendWaitingForOkResponse(RESPONSE_TIMEOUT);
 }
 
-void GrblInterface::setPlane(Grbl::Plane plane)
+bool GrblInterface::setPlane(Grbl::Plane plane)
 {
     switch (plane)
     {
     case Grbl::Plane::XY:
     {
-        sendCommand(Grbl::Command::G17_PlaneSelectionXY);
-        break;
+        return sendCommand(Grbl::Command::G17_PlaneSelectionXY);
     }
     case Grbl::Plane::ZX:
     {
-        sendCommand(Grbl::Command::G18_PlaneSelectionZX);
-        break;
+        return sendCommand(Grbl::Command::G18_PlaneSelectionZX);
     }
     case Grbl::Plane::YZ:
     {
-        sendCommand(Grbl::Command::G19_PlaneSelectionYZ);
-        break;
+        return sendCommand(Grbl::Command::G19_PlaneSelectionYZ);
     }
     }
 }
 
-void GrblInterface::spindleOn(RotationDirection direction)
+// M-codes
+bool GrblInterface::spindleOn(RotationDirection direction)
 {
     switch (direction)
     {
     case RotationDirection::Clockwise:
     {
-        sendCommand(Grbl::Command::M3_SpindleControlCW);
-        break;
+        return sendCommand(Grbl::Command::M3_SpindleControlCW);
     }
     case RotationDirection::CounterClockwise:
     {
-        sendCommand(Grbl::Command::M4_SpindleControlCCW);
-        break;
+        return sendCommand(Grbl::Command::M4_SpindleControlCCW);
     }
     }
 }
 
-void GrblInterface::spindleOff()
+bool GrblInterface::spindleOff()
 {
-    sendCommand(Grbl::Command::M5_SpindleStop);
+    return sendCommand(Grbl::Command::M5_SpindleStop);
 }
 
-void GrblInterface::runHomingCycle()
+// $ commands
+bool GrblInterface::reboot()
 {
-    sendCommand(Grbl::Command::RunHomingCycle);
+    return sendCommand(Grbl::Command::RebootProcessor);
 }
 
-void GrblInterface::clearAlarm()
+bool GrblInterface::softReset()
 {
-    sendCommand(Grbl::Command::ClearAlarmLock);
+    return sendCommand(Grbl::Command::SoftReset);
 }
 
-void GrblInterface::jog(float feedRate, const std::vector<PositionPair> &position)
+bool GrblInterface::pause()
+{
+    return sendCommand(Grbl::Command::Pause);
+}
+
+bool GrblInterface::resume()
+{
+    return sendCommand(Grbl::Command::Resume);
+}
+
+bool GrblInterface::runHomingCycle()
+{
+    return sendCommand(Grbl::Command::RunHomingCycle);
+}
+
+bool GrblInterface::clearAlarm()
+{
+    return sendCommand(Grbl::Command::ClearAlarmLock);
+}
+
+bool GrblInterface::jog(float feedRate, const std::vector<PositionPair> &position)
 {
     resetStringStream();
     appendCommand(Grbl::Command::RunJoggingMotion);
     appendValue(FEED_RATE_INDICATOR, feedRate);
     serializePosition(position);
-    send();
+    return sendWaitingForOkResponse(RESPONSE_TIMEOUT);
 }
 
 float GrblInterface::getCurrentFeedRate()
@@ -527,14 +534,50 @@ void GrblInterface::serializePosition(const std::vector<PositionPair> &position)
                   { m_stringStream << getAxis(pos.first) << pos.second << ' '; });
 }
 
-void GrblInterface::sendCommand(const Grbl::Command command)
-{
-    m_stream->println(Grbl::getCommand(command));
-}
-
 void GrblInterface::send()
 {
     m_stream->println(m_stringStream.str().c_str());
+}
+
+bool GrblInterface::sendCommand(const Grbl::Command command, bool waitForResponse)
+{
+    m_stringStream << Grbl::getCommand(command);
+
+    if (waitForResponse)
+    {
+        return sendWaitingForOkResponse(RESPONSE_TIMEOUT);
+    }
+
+    send();
+    return true;
+}
+
+bool GrblInterface::sendWaitingForOkResponse(uint16_t timeout)
+{
+    uint16_t timeoutAt = millis() + timeout;
+    std::stringstream ss;
+
+    // Clear buffer
+    while (m_stream->available())
+    {
+        m_stream->read();
+    }
+
+    send();
+
+    while (millis() < timeoutAt)
+    {
+        if (m_stream->available())
+        {
+            ss << (char)m_stream->read();
+            if (ss.str() == OK_RESPONSE)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 void GrblInterface::extractPosition(const char *positionString, Coordinate *positionArray)

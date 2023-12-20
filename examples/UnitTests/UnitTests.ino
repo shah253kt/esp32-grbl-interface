@@ -14,7 +14,6 @@ GrblInterface grbl(Serial);
 
 void setup() {
   Serial.begin(115200);
-  Serial2.begin(115200);
   
   grbl.onPositionUpdate = [](const Grbl::MachineState machineState,
                              const Grbl::CoordinateMode coordinateMode) {
@@ -72,7 +71,7 @@ void loop() {
   grbl.arcInterpolationPositioning(Grbl::ArcMovement::Clockwise, { { Grbl::Axis::X, 10.00 }, { Grbl::Axis::Y, 10.00 } }, 5.00, 10.00);
   grbl.arcInterpolationPositioning(Grbl::ArcMovement::CounterClockwise, { { Grbl::Axis::X, 10.00 }, { Grbl::Axis::Y, 10.00 } }, { 5.0, 5.0 }, 10.00);
 
-  grbl.dwell(3000);
+  grbl.dwell(3);
 
   grbl.setCoordinateSystemOrigin(Grbl::CoordinateOffset::Absolute, Grbl::CoordinateSystem::P1, { { Grbl::Axis::X, 0.00 }, { Grbl::Axis::Y, 0.00 }, { Grbl::Axis::Z, 0.00 } });
   grbl.setCoordinateSystemOrigin(Grbl::CoordinateOffset::Relative, Grbl::CoordinateSystem::P2, { { Grbl::Axis::X, 0.00 }, { Grbl::Axis::Y, 0.00 }, { Grbl::Axis::Z, 0.00 } });
