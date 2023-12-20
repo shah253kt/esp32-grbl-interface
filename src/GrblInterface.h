@@ -81,6 +81,8 @@ public:
     [[nodiscard]] Coordinate &getWorkCoordinateOffset();
     [[nodiscard]] float getWorkCoordinateOffset(Grbl::Axis axis);
 
+    [[nodiscard]] bool machineIsAt(const std::vector<PositionPair> &position);
+
     [[nodiscard]] char *getMachineState(Grbl::MachineState machineState);
     [[nodiscard]] Grbl::MachineState getMachineState(char *state);
 

@@ -1,4 +1,5 @@
 #include "GrblInterface.h"
+#include "Utils.h"
 
 #include <Regexp.h>
 
@@ -14,7 +15,7 @@ namespace
     constexpr auto ERROR_RESPONSE = "error";
     constexpr auto EOL = '\r';
     constexpr auto STATUS_REPORT_MIN_INTERVAL_MS = 200; // Limits the status report query to 5Hz, as recommended by Grbl.
-    constexpr auto RESPONSE_TIMEOUT = 50;
+    constexpr auto RESPONSE_TIMEOUT = 200;
 
     namespace RegEx
     {
@@ -296,7 +297,7 @@ bool GrblInterface::resume()
 
 bool GrblInterface::runHomingCycle()
 {
-    return sendCommand(Grbl::Command::RunHomingCycle);
+    return sendCommand(Grbl::Command::RunHomingCycle, false);
 }
 
 bool GrblInterface::clearAlarm()
@@ -367,6 +368,12 @@ Coordinate &GrblInterface::getWorkCoordinateOffset()
 float GrblInterface::getWorkCoordinateOffset(const Grbl::Axis axis)
 {
     return m_workCoordinateOffset[static_cast<int>(axis)];
+}
+
+bool GrblInterface::machineIsAt(const std::vector<PositionPair> &position)
+{
+    return std::all_of(position.begin(), position.end(), [this](const PositionPair &pos)
+                       { return Utils::equals(pos.second, getMachineCoordinate(pos.first)); });
 }
 
 char *GrblInterface::getMachineState(Grbl::MachineState machineState)
@@ -541,6 +548,7 @@ void GrblInterface::send()
 
 bool GrblInterface::sendCommand(const Grbl::Command command, bool waitForResponse)
 {
+    resetStringStream();
     m_stringStream << Grbl::getCommand(command);
 
     if (waitForResponse)
@@ -554,7 +562,7 @@ bool GrblInterface::sendCommand(const Grbl::Command command, bool waitForRespons
 
 bool GrblInterface::sendWaitingForOkResponse(uint16_t timeout)
 {
-    uint16_t timeoutAt = millis() + timeout;
+    uint32_t timeoutAt = millis() + timeout;
     std::stringstream ss;
 
     // Clear buffer
@@ -570,7 +578,7 @@ bool GrblInterface::sendWaitingForOkResponse(uint16_t timeout)
         if (m_stream->available())
         {
             ss << (char)m_stream->read();
-            if (ss.str() == OK_RESPONSE)
+            if (ss.str().find(OK_RESPONSE) != std::string::npos)
             {
                 return true;
             }
