@@ -376,6 +376,12 @@ bool GrblInterface::machineIsAt(const std::vector<PositionPair> &position)
                        { return Utils::equals(pos.second, getMachineCoordinate(pos.first)); });
 }
 
+Grbl::MachineState GrblInterface::currentMachineState()
+{
+    update();
+    return m_machineState;
+}
+
 char *GrblInterface::getMachineState(Grbl::MachineState machineState)
 {
     if (machineState == Grbl::MachineState::Unknown)
@@ -486,6 +492,7 @@ void GrblInterface::processBuffer()
             return;
         }
 
+        m_machineState = machineState;
         ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_POSITION_MODE);
         auto coordinateMode = getCoordinateMode(tempBuffer);
 

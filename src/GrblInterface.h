@@ -83,6 +83,7 @@ public:
 
     [[nodiscard]] bool machineIsAt(const std::vector<PositionPair> &position);
 
+    [[nodiscard]] Grbl::MachineState currentMachineState();
     [[nodiscard]] char *getMachineState(Grbl::MachineState machineState);
     [[nodiscard]] Grbl::MachineState getMachineState(char *state);
 
@@ -99,6 +100,7 @@ public:
 private:
     Stream *m_stream;
     std::string m_buffer;
+    Grbl::MachineState m_machineState;
     Coordinate m_workCoordinate;
     Coordinate m_workCoordinateOffset;
     Coordinate m_machineCoordinate;
