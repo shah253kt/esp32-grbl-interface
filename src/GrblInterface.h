@@ -51,8 +51,8 @@ public:
     [[nodiscard]] bool dwell(uint16_t durationSeconds);
 
     [[nodiscard]] bool setCoordinateSystemOrigin(Grbl::CoordinateOffset coordinateOffset,
-                                   Grbl::CoordinateSystem coordinateSystem,
-                                   const std::vector<PositionPair> &position);
+                                                 Grbl::CoordinateSystem coordinateSystem,
+                                                 const std::vector<PositionPair> &position);
 
     [[nodiscard]] bool setPlane(Grbl::Plane plane);
 
@@ -93,9 +93,9 @@ public:
     [[nodiscard]] char *getCoordinateMode(Grbl::CoordinateMode coordinateMode);
     [[nodiscard]] Grbl::CoordinateMode getCoordinateMode(char *coordinateMode);
 
-    void test();
-
+    // Others
     std::function<void(Grbl::MachineState, Grbl::CoordinateMode)> onPositionUpdate;
+    std::function<void(std::string)> onGCodeAboutToBeSent;
 
 private:
     Stream *m_stream;
@@ -117,6 +117,9 @@ private:
     void send();
     [[nodiscard]] bool sendCommand(Grbl::Command command, bool waitForResponse = true);
     [[nodiscard]] bool sendWaitingForOkResponse(uint16_t timeout);
+
+    std::function<void(bool)> onOkResponseReceived;
+
     void extractPosition(const char *positionString, Coordinate *positionArray);
     [[nodiscard]] float toWorkCoordinate(float machineCoordinate, float offset);
     [[nodiscard]] float toMachineCoordinate(float workCoordinate, float offset);

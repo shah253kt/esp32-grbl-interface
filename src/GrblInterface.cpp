@@ -11,7 +11,6 @@ namespace
     constexpr auto RADIUS_INDICATOR = 'R';
     constexpr auto FEED_RATE_INDICATOR = 'F';
     constexpr auto VALUE_SEPARATOR = ',';
-    constexpr auto OK_RESPONSE = "ok";
     constexpr auto ERROR_RESPONSE = "error";
     constexpr auto EOL = '\r';
     constexpr auto STATUS_REPORT_MIN_INTERVAL_MS = 200; // Limits the status report query to 5Hz, as recommended by Grbl.
@@ -24,6 +23,7 @@ namespace
         constexpr auto STATUS_REPORT = "<([%w:%d]+)%|(%w+):([-%d.,]+)[%|]?.*>";
         constexpr auto FEED_AND_SPEED = "FS:(%-?%d+%.?%d*),(%-?%d+%.?%d*)";
         constexpr auto WORK_COORDINATE_OFFSET = "WCO:([%-?%d+%.?%d*,]*)";
+        constexpr auto OK_RESPONSE = "ok";
     }
 
     namespace ResponseIndex
@@ -65,6 +65,7 @@ void GrblInterface::update(uint16_t timeout)
     while (m_stream->available() && millis() < timeoutAt)
     {
         const char c = m_stream->read();
+        // Serial.print(c);
 
         if (c == EOL)
         {
@@ -451,10 +452,6 @@ Grbl::CoordinateMode GrblInterface::getCoordinateMode(char *coordinateMode)
     return Grbl::CoordinateMode::Unknown;
 }
 
-void GrblInterface::test()
-{
-}
-
 // --------------------------------------------------------------------------------------------------
 // Private methods
 // --------------------------------------------------------------------------------------------------
@@ -517,6 +514,11 @@ void GrblInterface::processBuffer()
             onPositionUpdate(machineState, coordinateMode);
         }
     }
+
+    if (ms.Match((char *)RegEx::OK_RESPONSE) > 0 && onOkResponseReceived)
+    {
+        onOkResponseReceived(true);
+    }
 }
 
 void GrblInterface::resetStringStream()
@@ -550,6 +552,11 @@ void GrblInterface::serializePosition(const std::vector<PositionPair> &position)
 
 void GrblInterface::send()
 {
+    if (onGCodeAboutToBeSent)
+    {
+        onGCodeAboutToBeSent(m_stringStream.str());
+    }
+
     m_stream->println(m_stringStream.str().c_str());
 }
 
@@ -571,24 +578,22 @@ bool GrblInterface::sendWaitingForOkResponse(uint16_t timeout)
 {
     uint32_t timeoutAt = millis() + timeout;
     std::stringstream ss;
+    bool okResponseReceived = false;
 
-    // Clear buffer
-    while (m_stream->available())
+    onOkResponseReceived = [&okResponseReceived](bool result)
     {
-        m_stream->read();
-    }
+        okResponseReceived = result;
+    };
 
     send();
 
     while (millis() < timeoutAt)
     {
-        if (m_stream->available())
+        update(); // Process current buffer
+
+        if (okResponseReceived)
         {
-            ss << (char)m_stream->read();
-            if (ss.str().find(OK_RESPONSE) != std::string::npos)
-            {
-                return true;
-            }
+            return true;
         }
     }
 
