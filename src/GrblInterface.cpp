@@ -80,6 +80,14 @@ void GrblInterface::update(uint16_t timeout)
     m_buffer.append(ss.str());
 }
 
+void GrblInterface::clearBuffer()
+{
+    while (m_stream->available())
+    {
+        m_stream->read();
+    }
+}
+
 // G-codes
 bool GrblInterface::setUnitOfMeasurement(const Grbl::UnitOfMeasurement unitOfMeasurement)
 {
@@ -299,6 +307,14 @@ bool GrblInterface::resume()
 bool GrblInterface::runHomingCycle()
 {
     return sendCommand(Grbl::Command::RunHomingCycle, false);
+}
+
+bool GrblInterface::runHomingCycle(const Grbl::Axis axis)
+{
+    resetStringStream();
+    m_stringStream << Grbl::getCommand(Grbl::Command::RunHomingCycle) << getAxis(axis);
+    send();
+    return true;
 }
 
 bool GrblInterface::clearAlarm()

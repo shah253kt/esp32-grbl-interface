@@ -27,6 +27,7 @@ public:
     GrblInterface(Stream &stream);
 
     void update(uint16_t timeout = Grbl::DEFAULT_TIMEOUT_MS);
+    void clearBuffer();
 
     // G-codes
     [[nodiscard]] bool setUnitOfMeasurement(Grbl::UnitOfMeasurement unitOfMeasurement);
@@ -66,6 +67,7 @@ public:
     [[nodiscard]] bool pause();
     [[nodiscard]] bool resume();
     [[nodiscard]] bool runHomingCycle();
+    [[nodiscard]] bool runHomingCycle(Grbl::Axis axis);
     [[nodiscard]] bool clearAlarm();
     [[nodiscard]] bool jog(float feedRate, const std::vector<PositionPair> &position);
 
