@@ -77,7 +77,10 @@ void GrblInterface::update(uint16_t timeout)
         ss << c;
     }
 
-    m_buffer.append(ss.str());
+    if (!ss.str().empty())
+    {
+        m_buffer.append(ss.str());
+    }
 }
 
 void GrblInterface::clearBuffer()
@@ -403,7 +406,7 @@ char *GrblInterface::getMachineState(Grbl::MachineState machineState)
 {
     if (machineState == Grbl::MachineState::Unknown)
     {
-        return nullptr;
+        return "N/A";
     }
 
     return Grbl::machineStates[static_cast<int>(machineState)];
@@ -449,7 +452,7 @@ char *GrblInterface::getCoordinateMode(Grbl::CoordinateMode coordinateMode)
 {
     if (coordinateMode == Grbl::CoordinateMode::Unknown)
     {
-        return nullptr;
+        return "N/A";
     }
 
     return Grbl::coordinateModes[static_cast<int>(coordinateMode)];
