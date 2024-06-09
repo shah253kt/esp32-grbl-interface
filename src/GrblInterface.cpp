@@ -24,6 +24,8 @@ namespace
         constexpr auto FEED_AND_SPEED = "FS:(%-?%d+%.?%d*),(%-?%d+%.?%d*)";
         constexpr auto WORK_COORDINATE_OFFSET = "WCO:([%-?%d+%.?%d*,]*)";
         constexpr auto OK_RESPONSE = "ok";
+        constexpr auto ALARM_CODE = "ALARM:([%d]+)";
+        constexpr auto ERROR_CODE = "error:([%d]+)";
     }
 
     namespace ResponseIndex
@@ -40,7 +42,9 @@ namespace
 GrblInterface::GrblInterface(Stream &stream)
     : m_stream(&stream),
       m_currentFeedRate(0),
-      m_currentSpindleSpeed(0)
+      m_currentSpindleSpeed(0),
+      m_currentAlarm(Grbl::Alarm::None),
+      m_currentError(Grbl::Error::None)
 {
 }
 
@@ -471,6 +475,16 @@ Grbl::CoordinateMode GrblInterface::getCoordinateMode(char *coordinateMode)
     return Grbl::CoordinateMode::Unknown;
 }
 
+Grbl::Alarm GrblInterface::currentAlarm()
+{
+    return m_currentAlarm;
+}
+
+Grbl::Error GrblInterface::currentError()
+{
+    return m_currentError;
+}
+
 // --------------------------------------------------------------------------------------------------
 // Private methods
 // --------------------------------------------------------------------------------------------------
@@ -537,6 +551,36 @@ void GrblInterface::processBuffer()
     if (ms.Match((char *)RegEx::OK_RESPONSE) > 0 && onOkResponseReceived)
     {
         onOkResponseReceived(true);
+    }
+
+    if (ms.Match((char *)RegEx::ALARM_CODE) > 0)
+    {
+        ms.GetCapture(tempBuffer, 0);
+
+        try
+        {
+            const auto alarmCode = std::stoi(tempBuffer);
+            m_currentAlarm = static_cast<Grbl::Alarm>(alarmCode);
+        }
+        catch (std::invalid_argument &e)
+        {
+            return;
+        }
+    }
+
+    if (ms.Match((char *)RegEx::ERROR_CODE) > 0)
+    {
+        ms.GetCapture(tempBuffer, 0);
+
+        try
+        {
+            const auto errorCode = std::stoi(tempBuffer);
+            m_currentError = static_cast<Grbl::Error>(errorCode);
+        }
+        catch (std::invalid_argument &e)
+        {
+            return;
+        }
     }
 }
 

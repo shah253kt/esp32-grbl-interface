@@ -95,6 +95,9 @@ public:
     [[nodiscard]] char *getCoordinateMode(Grbl::CoordinateMode coordinateMode);
     [[nodiscard]] Grbl::CoordinateMode getCoordinateMode(char *coordinateMode);
 
+    [[nodiscard]] Grbl::Alarm currentAlarm();
+    [[nodiscard]] Grbl::Error currentError();
+
     // Others
     std::function<void(Grbl::MachineState, Grbl::CoordinateMode)> onPositionUpdate;
     std::function<void(std::string)> onGCodeAboutToBeSent;
@@ -109,6 +112,8 @@ private:
     std::stringstream m_stringStream;
     float m_currentFeedRate;
     float m_currentSpindleSpeed;
+    Grbl::Alarm m_currentAlarm;
+    Grbl::Error m_currentError;
 
     void processBuffer();
     void resetStringStream();
