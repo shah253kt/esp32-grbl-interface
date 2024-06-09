@@ -114,7 +114,7 @@ namespace Grbl
         HardStop,                           // 13: Hard Stop
         Unhomed,                            // 14: Unhomed Your machine needs to be homed. See the must_home item in the config file. You home with $H. You can clear the error with $Alarm/Disable or $X.
         Init                                // 15 Init
-    }
+    };
 
     enum class Error
     {
@@ -186,5 +186,5 @@ namespace Grbl
         ConfigurationIsInvalid = 152,            // 152: Configuration is invalid. Check boot messages for ERR's.
         FileUploadFailed = 160,                  // 160: File Upload Failed
         FileDownloadFailed = 161                 // 161: File Download Failed
-    }
+    };
 }
