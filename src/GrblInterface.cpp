@@ -95,6 +95,11 @@ void GrblInterface::clearBuffer()
     }
 }
 
+bool GrblInterface::getStatusReport(bool waitForOkResponse)
+{
+    return sendCommand(Grbl::Command::StatusReport, waitForOkResponse);
+}
+
 // G-codes
 bool GrblInterface::setUnitOfMeasurement(const Grbl::UnitOfMeasurement unitOfMeasurement)
 {
@@ -496,7 +501,6 @@ void GrblInterface::processBuffer()
     char tempBuffer[m_buffer.length() + 1];
     strcpy(buffer, m_buffer.c_str());
     ms.Target(buffer);
-    m_buffer.clear();
 
     if (ms.Match((char *)RegEx::FEED_AND_SPEED) > 0)
     {
@@ -514,6 +518,11 @@ void GrblInterface::processBuffer()
 
     if (ms.Match((char *)RegEx::STATUS_REPORT) > 0)
     {
+        if (statusReportReceived)
+        {
+            statusReportReceived(m_buffer);
+        }
+
         ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_MACHINE_STATE);
         auto machineState = getMachineState(tempBuffer);
 
@@ -582,6 +591,8 @@ void GrblInterface::processBuffer()
             return;
         }
     }
+
+    m_buffer.clear();
 }
 
 void GrblInterface::resetStringStream()

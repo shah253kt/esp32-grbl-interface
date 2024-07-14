@@ -28,6 +28,7 @@ public:
 
     void update(uint16_t timeout = Grbl::DEFAULT_TIMEOUT_MS);
     void clearBuffer();
+    bool getStatusReport(bool waitForOkResponse = true);
 
     // G-codes
     [[nodiscard]] bool setUnitOfMeasurement(Grbl::UnitOfMeasurement unitOfMeasurement);
@@ -101,6 +102,7 @@ public:
     // Others
     std::function<void(Grbl::MachineState, Grbl::CoordinateMode)> onPositionUpdate;
     std::function<void(std::string)> onGCodeAboutToBeSent;
+    std::function<void(std::string)> statusReportReceived;
 
 private:
     Stream *m_stream;
