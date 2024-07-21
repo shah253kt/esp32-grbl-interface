@@ -29,6 +29,7 @@ public:
     void update(uint16_t timeout = Grbl::DEFAULT_TIMEOUT_MS);
     void clearBuffer();
     bool getStatusReport(bool waitForOkResponse = true);
+    std::vector<Grbl::Axis> limitSwitchesTriggered();
 
     // G-codes
     [[nodiscard]] bool setUnitOfMeasurement(Grbl::UnitOfMeasurement unitOfMeasurement);
@@ -116,6 +117,7 @@ private:
     float m_currentSpindleSpeed;
     Grbl::Alarm m_currentAlarm;
     Grbl::Error m_currentError;
+    std::vector<Grbl::Axis> m_limitSwitchesTriggered;
 
     void processBuffer();
     void resetStringStream();

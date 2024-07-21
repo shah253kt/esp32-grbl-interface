@@ -22,6 +22,7 @@ namespace
         // https://montymahato.github.io/lua-pattern-tester/
         constexpr auto STATUS_REPORT = "<([%w:%d]+)%|(%w+):([-%d.,]+)[%|]?.*>";
         constexpr auto FEED_AND_SPEED = "FS:(%-?%d+%.?%d*),(%-?%d+%.?%d*)";
+        constexpr auto LIMIT_SWITCH = "Pn:([A-Z]+)";
         constexpr auto WORK_COORDINATE_OFFSET = "WCO:([%-?%d+%.?%d*,]*)";
         constexpr auto OK_RESPONSE = "ok";
         constexpr auto ALARM_CODE = "ALARM:([%d]+)";
@@ -35,6 +36,7 @@ namespace
         constexpr auto STATUS_REPORT_POSITION = 2;
         constexpr auto STATUS_REPORT_FEED_RATE = 0;
         constexpr auto STATUS_REPORT_SPINDLE_SPEED = 1;
+        constexpr auto STATUS_REPORT_LIMIT_SWITCH = 0;
         constexpr auto STATUS_REPORT_WORK_COORDINATE_OFFSET = 0;
     }
 }
@@ -98,6 +100,11 @@ void GrblInterface::clearBuffer()
 bool GrblInterface::getStatusReport(bool waitForOkResponse)
 {
     return sendCommand(Grbl::Command::StatusReport, waitForOkResponse);
+}
+
+std::vector<Grbl::Axis> GrblInterface::limitSwitchesTriggered()
+{
+    return m_limitSwitchesTriggered;
 }
 
 // G-codes
@@ -508,6 +515,24 @@ void GrblInterface::processBuffer()
         m_currentFeedRate = atof(tempBuffer);
         ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_SPINDLE_SPEED);
         m_currentSpindleSpeed = atof(tempBuffer);
+    }
+
+    m_limitSwitchesTriggered.clear();
+
+    if (ms.Match((char *)RegEx::LIMIT_SWITCH) > 0)
+    {
+        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_LIMIT_SWITCH);
+
+        for (auto i = 0; i < Grbl::MAX_NUMBER_OF_AXES; i++)
+        {
+            for (const auto c : tempBuffer)
+            {
+                if (c == Grbl::axes[i])
+                {
+                    m_limitSwitchesTriggered.push_back(static_cast<Grbl::Axis>(i));
+                }
+            }
+        }
     }
 
     if (ms.Match((char *)RegEx::WORK_COORDINATE_OFFSET) > 0)

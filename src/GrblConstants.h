@@ -49,7 +49,7 @@ namespace Grbl
         Unknown
     };
 
-    inline constexpr std::array<char, 6> axes = {'X', 'Y', 'Z', 'A', 'B', 'C'};
+    inline constexpr std::array<char, MAX_NUMBER_OF_AXES> axes = {'X', 'Y', 'Z', 'A', 'B', 'C'};
 
     enum class CoordinateMode
     {
