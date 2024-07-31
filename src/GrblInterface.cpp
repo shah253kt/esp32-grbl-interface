@@ -517,24 +517,6 @@ void GrblInterface::processBuffer()
         m_currentSpindleSpeed = atof(tempBuffer);
     }
 
-    m_limitSwitchesTriggered.clear();
-
-    if (ms.Match((char *)RegEx::LIMIT_SWITCH) > 0)
-    {
-        ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_LIMIT_SWITCH);
-
-        for (auto i = 0; i < Grbl::MAX_NUMBER_OF_AXES; i++)
-        {
-            for (const auto c : tempBuffer)
-            {
-                if (c == Grbl::axes[i])
-                {
-                    m_limitSwitchesTriggered.push_back(static_cast<Grbl::Axis>(i));
-                }
-            }
-        }
-    }
-
     if (ms.Match((char *)RegEx::WORK_COORDINATE_OFFSET) > 0)
     {
         ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_WORK_COORDINATE_OFFSET);
@@ -579,6 +561,24 @@ void GrblInterface::processBuffer()
         if (onPositionUpdate)
         {
             onPositionUpdate(machineState, coordinateMode);
+        }
+
+        m_limitSwitchesTriggered.clear();
+
+        if (ms.Match((char *)RegEx::LIMIT_SWITCH) > 0)
+        {
+            ms.GetCapture(tempBuffer, ResponseIndex::STATUS_REPORT_LIMIT_SWITCH);
+
+            for (auto i = 0; i < Grbl::MAX_NUMBER_OF_AXES; i++)
+            {
+                for (const auto c : tempBuffer)
+                {
+                    if (c == Grbl::axes[i])
+                    {
+                        m_limitSwitchesTriggered.push_back(static_cast<Grbl::Axis>(i));
+                    }
+                }
+            }
         }
     }
 
